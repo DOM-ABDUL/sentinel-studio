@@ -12,16 +12,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Sentinel Studio — AI Code Reliability & Self-Healing",
   description:
     "Multi-agent AI reliability benchmarking and self-healing system built with OpenAI Codex.",
   openGraph: {
-    title: "Sentinel Studio",
+    title: "Sentinel Studio — AI Code Reliability & Self-Healing",
     description:
-      "AI reliability benchmarking and self-healing multi-agent engineering system.",
+      "Multi-agent AI reliability benchmarking and self-healing system.",
+    url: "https://sentinel-studio-sigma.vercel.app/",
+    siteName: "Sentinel Studio",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Sentinel Studio — AI Code Reliability & Self-Healing",
+      },
+    ],
+    locale: "en_US",
     type: "website",
-     images: ["/og-image.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sentinel Studio — AI Code Reliability & Self-Healing",
+    description:
+      "Multi-agent AI reliability benchmarking and self-healing system.",
+    images: ["/og-image.png"],
   },
 };
 export default function RootLayout({
