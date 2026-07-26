@@ -18,6 +18,7 @@ type Confidence = {
 };
 
 type RawResponse = {
+  baselineCode: string;
   evaluation: {
     reliabilityScore: number;
     riskBreakdown: RiskBreakdown;
@@ -26,6 +27,8 @@ type RawResponse = {
 };
 
 type SentinelResponse = {
+  baselineCode: string;
+  finalCode: string;
   initialEvaluation: {
     reliabilityScore: number;
   };
@@ -34,6 +37,7 @@ type SentinelResponse = {
     riskBreakdown: RiskBreakdown;
     confidence: Confidence;
   };
+  improvementSummary: string;
 };
 
 const RISK_LABELS: Array<{ key: keyof RiskBreakdown; label: string }> = [
@@ -61,6 +65,10 @@ export default function HomePage() {
 
   const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown | null>(null);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
+
+  const [baselineCode, setBaselineCode] = useState<string | null>(null);
+  const [finalCode, setFinalCode] = useState<string | null>(null);
+  const [improvementSummary, setImprovementSummary] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasRun || finalScore <= 0) return;
@@ -140,6 +148,9 @@ export default function HomePage() {
     setLoading(true);
     setHasRun(false);
     setAnimatedFinal(0);
+    setBaselineCode(null);
+    setFinalCode(null);
+    setImprovementSummary(null);
     setModeLabel(mode === 'sentinel' ? 'Sentinel Mode' : 'Raw AI Mode');
     setLogs([
       mode === 'sentinel'
@@ -172,6 +183,9 @@ export default function HomePage() {
         setFinalScore(score);
         setRiskBreakdown(data.evaluation.riskBreakdown);
         setConfidence(data.evaluation.confidence);
+        setBaselineCode(data.baselineCode);
+        setFinalCode(null);
+        setImprovementSummary(null);
         setHasRun(true);
       } else {
         const data = (await res.json()) as SentinelResponse;
@@ -187,6 +201,9 @@ export default function HomePage() {
         setFinalScore(data.finalEvaluation.reliabilityScore);
         setRiskBreakdown(data.finalEvaluation.riskBreakdown);
         setConfidence(data.finalEvaluation.confidence);
+        setBaselineCode(data.baselineCode);
+        setFinalCode(data.finalCode);
+        setImprovementSummary(data.improvementSummary);
         setHasRun(true);
       }
     } catch {
@@ -224,8 +241,8 @@ export default function HomePage() {
             </div>
           </aside>
 
-          <section className="lg:col-span-5 xl:col-span-6">
-            <div className="relative flex h-full min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/55 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
+          <section className="space-y-5 lg:col-span-5 xl:col-span-6">
+            <div className="relative flex min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/55 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
               <div className="pointer-events-none absolute inset-x-14 top-0 h-20 bg-gradient-to-b from-cyan-400/10 to-transparent blur-2xl" />
 
               <label
@@ -263,26 +280,75 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
+
+            {hasRun && (
+              <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/50 p-5 shadow-[0_14px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-6">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Generated Output</h2>
+
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-4">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">Baseline Output</p>
+                    <pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
+                      {baselineCode ?? '--'}
+                    </pre>
+                  </div>
+
+                  {finalCode !== null && (
+                    <>
+                      <div className="rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-4">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">Improved Output</p>
+                        <pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
+                          {finalCode}
+                        </pre>
+                      </div>
+
+                      <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-cyan-200/80">
+                          Improvement Summary
+                        </p>
+                        <p className="text-sm leading-6 text-zinc-300">{improvementSummary ?? '--'}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
           <aside className="lg:col-span-4">
             <div className="flex h-full min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/45 p-4 shadow-[0_12px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:p-5">
               <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Reliability Dashboard</h2>
-
+{hasRun && (
+  <p className="mt-2 text-xs text-zinc-400">
+    {modeLabel === 'Raw AI Mode'
+      ? 'Baseline code generated directly from model.'
+      : 'Sentinel multi-agent pipeline applied reliability improvements.'}
+  </p>
+)}
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-4">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-400">Raw AI Score</p>
-                  <p className={`mt-2 text-3xl font-semibold leading-none text-zinc-200 transition-opacity duration-500 ${hasRun ? 'opacity-100' : 'opacity-70'}`}>
+                  <p
+                    className={`mt-2 text-3xl font-semibold leading-none text-zinc-200 transition-opacity duration-500 ${
+                      hasRun ? 'opacity-100' : 'opacity-70'
+                    }`}
+                  >
                     {hasRun ? `${initialScore}%` : '--'}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-cyan-200/90">Sentinel Score</p>
-                  <p className={`mt-2 text-5xl font-bold leading-none text-cyan-300 transition-opacity duration-500 ${hasRun ? 'opacity-100' : 'opacity-70'}`}>
+                  <p
+                    className={`mt-2 text-5xl font-bold leading-none text-cyan-300 transition-opacity duration-500 ${
+                      hasRun ? 'opacity-100' : 'opacity-70'
+                    }`}
+                  >
                     {hasRun ? `${animatedFinal}%` : '--'}
                   </p>
-                  <div className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${status.borderClass} ${status.bgClass} ${status.textClass}`}>
+                  <div
+                    className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${status.borderClass} ${status.bgClass} ${status.textClass}`}
+                  >
                     <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} />
                     <span>{status.label}</span>
                   </div>
@@ -305,7 +371,11 @@ export default function HomePage() {
                       </div>
                       <div className="rounded-lg border border-zinc-800 bg-zinc-900/70 p-2">
                         <p className="text-zinc-500">Delta</p>
-                        <p className={`mt-1 text-sm font-semibold ${hasRun && delta > 0 ? 'text-cyan-300' : 'text-zinc-300'}`}>
+                        <p
+                          className={`mt-1 text-sm font-semibold ${
+                            hasRun && delta > 0 ? 'text-cyan-300' : 'text-zinc-300'
+                          }`}
+                        >
                           {animationComplete ? `${delta > 0 ? '+' : ''}${delta}%` : '--'}
                         </p>
                       </div>
@@ -363,9 +433,7 @@ export default function HomePage() {
                     </div>
                     <div className="flex items-center justify-between rounded-md border border-zinc-800/80 bg-zinc-950/60 px-3 py-2 text-xs">
                       <span className="text-zinc-400">Implementation Confidence</span>
-                      <span className="font-medium text-zinc-200">
-                        {confidence?.implementationConfidence ?? '--'}
-                      </span>
+                      <span className="font-medium text-zinc-200">{confidence?.implementationConfidence ?? '--'}</span>
                     </div>
                     <div className="flex items-center justify-between rounded-md border border-zinc-800/80 bg-zinc-950/60 px-3 py-2 text-xs">
                       <span className="text-zinc-400">Security Confidence</span>
