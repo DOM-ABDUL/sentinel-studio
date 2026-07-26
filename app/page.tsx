@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-type Mode = 'raw' | 'sentinel';
+type Mode = 'raw' | 'sentinel' | 'improve';
 
 type RiskBreakdown = {
   validation: string;
@@ -26,7 +26,7 @@ type RawResponse = {
   };
 };
 
-type SentinelResponse = {
+type HardenedResponse = {
   baselineCode: string;
   finalCode: string;
   initialEvaluation: {
@@ -52,7 +52,10 @@ function wait(ms: number) {
 }
 
 export default function HomePage() {
+  const [activeTab, setActiveTab] = useState<'generate' | 'improve'>('generate');
+
   const [prompt, setPrompt] = useState('');
+  const [pastedCode, setPastedCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [hasRun, setHasRun] = useState(false);
 
@@ -90,6 +93,17 @@ export default function HomePage() {
 
     return () => clearInterval(counter);
   }, [finalScore, hasRun]);
+  useEffect(() => {
+  // Reset UI when switching tabs
+  setHasRun(false);
+  setBaselineCode(null);
+  setFinalCode(null);
+  setImprovementSummary(null);
+  setLogs([]);
+  setInitialScore(0);
+  setFinalScore(0);
+  setAnimatedFinal(0);
+}, [activeTab]);
 
   const delta = finalScore - initialScore;
   const animationComplete = hasRun && animatedFinal === finalScore;
@@ -143,7 +157,11 @@ export default function HomePage() {
   }
 
   async function runBenchmark(mode: Mode) {
-    if (!prompt.trim() || loading) return;
+    const isImprove = mode === 'improve';
+    const promptInput = prompt.trim();
+    const codeInput = pastedCode.trim();
+
+    if ((!isImprove && !promptInput) || (isImprove && !codeInput) || loading) return;
 
     setLoading(true);
     setHasRun(false);
@@ -151,18 +169,28 @@ export default function HomePage() {
     setBaselineCode(null);
     setFinalCode(null);
     setImprovementSummary(null);
-    setModeLabel(mode === 'sentinel' ? 'Sentinel Mode' : 'Raw AI Mode');
-    setLogs([
-      mode === 'sentinel'
-        ? 'Initializing Sentinel multi-agent pipeline...'
-        : 'Running Raw AI baseline benchmark...',
-    ]);
+
+    if (mode === 'raw') {
+      setModeLabel('Raw AI Mode');
+      setLogs(['Running Raw AI baseline benchmark...']);
+    } else if (mode === 'sentinel') {
+      setModeLabel('Sentinel Mode');
+      setLogs(['Initializing Sentinel multi-agent pipeline...']);
+    } else {
+      setModeLabel('Improve Existing Code');
+      setLogs(['Auditing submitted code with Sentinel...']);
+    }
 
     try {
+      const body =
+        mode === 'improve'
+          ? { mode: 'improve', code: codeInput }
+          : { prompt: promptInput, mode };
+
       const res = await fetch('/api/run-agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, mode }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
@@ -188,10 +216,12 @@ export default function HomePage() {
         setImprovementSummary(null);
         setHasRun(true);
       } else {
-        const data = (await res.json()) as SentinelResponse;
+        const data = (await res.json()) as HardenedResponse;
 
         await streamLogs([
-          'Planning architecture with Sentinel planner...',
+          mode === 'improve'
+            ? 'Running deep static reliability audit...'
+            : 'Planning architecture with Sentinel planner...',
           'Applying implementation safeguards...',
           'Evaluating reliability after hardening...',
           'Sentinel benchmark complete.',
@@ -218,7 +248,7 @@ export default function HomePage() {
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="pb-8 pt-2 text-center">
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-50 sm:text-4xl">Sentinel Studio</h1>
-          <p className="mt-2 text-sm text-zinc-400 sm:text-base">AI Reliability Benchmarking System</p>
+          <p className="mt-2 text-sm text-zinc-400 sm:text-base">Multi-Agent AI Code Reliability & Self-Healing System</p>
           {modeLabel && <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-400">{modeLabel}</p>}
           <div className="mx-auto mt-5 h-px w-56 bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent" />
         </header>
@@ -245,45 +275,109 @@ export default function HomePage() {
             <div className="relative flex min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/55 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
               <div className="pointer-events-none absolute inset-x-14 top-0 h-20 bg-gradient-to-b from-cyan-400/10 to-transparent blur-2xl" />
 
-              <label
-                htmlFor="prompt"
-                className="relative z-10 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300"
-              >
-                Prompt Input
-              </label>
-
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                disabled={loading}
-                placeholder="Draft your benchmark prompt, constraints, and expected behavior here..."
-                className="relative z-10 mt-4 h-full min-h-[360px] flex-1 resize-none rounded-2xl border border-zinc-700/90 bg-zinc-950/70 p-5 text-sm leading-7 text-zinc-100 outline-none transition-all duration-200 placeholder:text-zinc-500 focus:border-cyan-400/60 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
-              />
-
-              <div className="relative z-10 mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="relative z-10 mb-4 flex gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-1">
                 <button
                   type="button"
-                  disabled={loading}
-                  onClick={() => runBenchmark('raw')}
-                  className="inline-flex items-center justify-center rounded-xl border border-zinc-600 bg-zinc-900/70 px-5 py-3 text-sm font-medium text-zinc-100 transition-all duration-200 hover:border-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => setActiveTab('generate')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    activeTab === 'generate'
+                      ? 'bg-cyan-500/20 text-cyan-200'
+                      : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
+                  }`}
                 >
-                  {loading && modeLabel === 'Raw AI Mode' ? 'Running...' : 'Run Raw AI'}
+                  Generate Code
                 </button>
                 <button
                   type="button"
-                  disabled={loading}
-                  onClick={() => runBenchmark('sentinel')}
-                  className="inline-flex items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/90 px-5 py-3 text-sm font-semibold text-zinc-950 shadow-[0_0_25px_rgba(34,211,238,0.35)] transition-all duration-200 hover:bg-cyan-300 hover:shadow-[0_0_35px_rgba(34,211,238,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => setActiveTab('improve')}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    activeTab === 'improve'
+                      ? 'bg-cyan-500/20 text-cyan-200'
+                      : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200'
+                  }`}
                 >
-                  {loading && modeLabel === 'Sentinel Mode' ? 'Running...' : 'Run Sentinel'}
+                  Improve Code
                 </button>
               </div>
+
+              {activeTab === 'generate' ? (
+                <>
+                  <label
+                    htmlFor="prompt"
+                    className="relative z-10 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300"
+                  >
+                    Prompt Input
+                  </label>
+
+                  <textarea
+                    id="prompt"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    disabled={loading}
+                    placeholder="Draft your benchmark prompt, constraints, and expected behavior here..."
+                    className="relative z-10 mt-4 h-full min-h-[360px] flex-1 resize-none rounded-2xl border border-zinc-700/90 bg-zinc-950/70 p-5 text-sm leading-7 text-zinc-100 outline-none transition-all duration-200 placeholder:text-zinc-500 focus:border-cyan-400/60 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+
+                  <div className="relative z-10 mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => runBenchmark('raw')}
+                      className="inline-flex items-center justify-center rounded-xl border border-zinc-600 bg-zinc-900/70 px-5 py-3 text-sm font-medium text-zinc-100 transition-all duration-200 hover:border-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading && modeLabel === 'Raw AI Mode' ? 'Running...' : 'Run Raw AI'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => runBenchmark('sentinel')}
+                      className="inline-flex items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/90 px-5 py-3 text-sm font-semibold text-zinc-950 shadow-[0_0_25px_rgba(34,211,238,0.35)] transition-all duration-200 hover:bg-cyan-300 hover:shadow-[0_0_35px_rgba(34,211,238,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading && modeLabel === 'Sentinel Mode' ? 'Running...' : 'Run Sentinel'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label
+                    htmlFor="improve-code"
+                    className="relative z-10 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300"
+                  >
+                    Paste Code to Audit & Improve
+                  </label>
+
+                  <textarea
+                    id="improve-code"
+                    value={pastedCode}
+                    onChange={(e) => setPastedCode(e.target.value)}
+                    disabled={loading}
+                    placeholder="Paste your existing code here for Sentinel analysis and hardening..."
+                    className="relative z-10 mt-4 h-full min-h-[360px] flex-1 resize-none rounded-2xl border border-zinc-700/90 bg-zinc-950/70 p-5 font-mono text-sm leading-7 text-zinc-100 outline-none transition-all duration-200 placeholder:text-zinc-500 focus:border-cyan-400/60 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+
+                  <div className="relative z-10 mt-5">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => runBenchmark('improve')}
+                      className="inline-flex w-full items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/90 px-5 py-3 text-sm font-semibold text-zinc-950 shadow-[0_0_25px_rgba(34,211,238,0.35)] transition-all duration-200 hover:bg-cyan-300 hover:shadow-[0_0_35px_rgba(34,211,238,0.45)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {loading && modeLabel === 'Improve Existing Code' ? 'Running...' : 'Run Sentinel'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {hasRun && (
               <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/50 p-5 shadow-[0_14px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Generated Output</h2>
+
+                {activeTab === 'improve' && (
+                  <p className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-sm text-cyan-100/90">
+                   Sentinel performed a structured reliability audit and applied automated corrections.
+                  </p>
+                )}
 
                 <div className="mt-4 space-y-4">
                   <div className="rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-4">
@@ -318,13 +412,7 @@ export default function HomePage() {
           <aside className="lg:col-span-4">
             <div className="flex h-full min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/45 p-4 shadow-[0_12px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:p-5">
               <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Reliability Dashboard</h2>
-{hasRun && (
-  <p className="mt-2 text-xs text-zinc-400">
-    {modeLabel === 'Raw AI Mode'
-      ? 'Baseline code generated directly from model.'
-      : 'Sentinel multi-agent pipeline applied reliability improvements.'}
-  </p>
-)}
+
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-zinc-700/80 bg-zinc-950/70 p-4">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-400">Raw AI Score</p>

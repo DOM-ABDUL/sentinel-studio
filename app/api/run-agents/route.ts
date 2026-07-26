@@ -9,7 +9,8 @@ import {
 
 type RequestBody = {
   prompt?: string;
-  mode?: "raw" | "sentinel";
+  code?: string;
+  mode?: "raw" | "sentinel" | "improve";
 };
 
 function getOpenAI(): OpenAI {
@@ -38,7 +39,7 @@ async function createCompletion(
   const content = completion.choices[0]?.message?.content?.trim();
 
   if (!content) {
-    throw new Error("OpenAI returned empty improvement summary.");
+    throw new Error("OpenAI returned an empty improvement summary.");
   }
 
   return content;
@@ -48,7 +49,45 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as RequestBody;
     const prompt = body.prompt?.trim();
+    const code = body.code?.trim();
     const mode = body.mode;
+
+    if (mode !== "raw" && mode !== "sentinel" && mode !== "improve") {
+      return NextResponse.json(
+        { error: 'Mode must be "raw", "sentinel", or "improve".' },
+        { status: 400 },
+      );
+    }
+
+    if (mode === "improve") {
+      if (!code) {
+        return NextResponse.json(
+          { error: "Code is required for improve mode." },
+          { status: 400 },
+        );
+      }
+
+      const baselineCode = code;
+      const initialEvaluation = await runEvaluationAgent(baselineCode);
+   const improvedCode = await runSelfHealingAgent(
+        baselineCode,
+        initialEvaluation.issues,
+      );
+      const finalEvaluation = await runEvaluationAgent(improvedCode);
+
+      const improvementSummary = await createCompletion(
+        "Summarize the reliability and security improvements made.",
+        `Baseline code:\n${baselineCode}\n\nImproved code:\n${improvedCode}`,
+      );
+
+      return NextResponse.json({
+        baselineCode,
+        finalCode: improvedCode,
+        initialEvaluation,
+        finalEvaluation,
+        improvementSummary,
+      });
+    }
 
     if (!prompt) {
       return NextResponse.json(
@@ -57,14 +96,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (mode !== "raw" && mode !== "sentinel") {
-      return NextResponse.json(
-        { error: 'Mode must be either "raw" or "sentinel".' },
-        { status: 400 },
-      );
-    }
-
-    // RAW MODE
     if (mode === "raw") {
       const baselineCode = await runBuilderAgent(prompt);
       const evaluation = await runEvaluationAgent(baselineCode);
@@ -75,7 +106,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // SENTINEL MODE
     const plan = await runPlannerAgent(prompt);
     const baselineCode = await runBuilderAgent(prompt, plan);
     const initialEvaluation = await runEvaluationAgent(baselineCode);
@@ -91,13 +121,12 @@ export async function POST(request: Request) {
         baselineCode,
         initialEvaluation.issues,
       );
-
       finalEvaluation = await runEvaluationAgent(finalCode);
     }
 
     const improvementSummary = await createCompletion(
-      "Summarize the improvements made between baseline and improved code in 3–5 concise sentences.",
-      `Baseline Code:\n${baselineCode}\n\nImproved Code:\n${finalCode}`,
+      "Summarize the improvements made between baseline and improved code.",
+      `Baseline code:\n${baselineCode}\n\nImproved code:\n${finalCode}`,
     );
 
     return NextResponse.json({
@@ -108,10 +137,6 @@ export async function POST(request: Request) {
       improvementSummary,
     });
   } catch (error) {
-    console.error("==== AGENT ERROR START ====");
-    console.error(error);
-    console.error("==== AGENT ERROR END ====");
-
     const message =
       error instanceof Error ? error.message : "Unable to run agents.";
 
