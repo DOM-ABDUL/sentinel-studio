@@ -1,36 +1,241 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛡️ Sentinel Studio
 
-## Getting Started
+### A Reliability Control Layer for AI‑Generated Backend Code  
+**Multi‑Agent System built with OpenAI Codex**
 
-First, run the development server:
+---
+
+## 🌐 Live Application
+
+**Deployed (No Login Required)**  
+https://sentinel-studio.vercel.app  
+
+**GitHub Repository**  
+https://github.com/DOM-ABDUL/sentinel-studio  
+
+---
+
+## The Problem
+
+AI can generate backend systems in seconds.
+
+But generation is not verification.
+
+AI‑produced backend code often includes:
+
+- Hardcoded secrets  
+- Missing input validation  
+- Weak authentication logic  
+- Incomplete error handling  
+- Hallucinated or insecure dependencies  
+
+The output may compile.  
+It may even look correct.  
+
+But it has not been systematically evaluated.
+
+There is no reliability control layer between generation and deployment.
+
+---
+
+## The Idea
+
+Sentinel Studio introduces that missing layer.
+
+Instead of trusting a single response, it runs each request through a structured multi‑agent workflow that:
+
+1. Plans the architecture  
+2. Generates the implementation  
+3. Audits and scores reliability  
+4. Automatically refactors vulnerabilities  
+5. Re‑evaluates before returning final output  
+
+The goal is simple:
+
+Move from **“AI generated this”**  
+to  
+**“AI generated, evaluated, and improved this.”**
+
+---
+
+## Screenshot — Main Interface
+
+
+```md
+![Main Dashboard](./public/dashboard.png)
+```
+
+---
+
+## How It Works
+
+Sentinel Studio uses OpenAI Codex in a structured agent pipeline.
+
+###  Planner Agent
+Analyzes the request and defines:
+- Architecture
+- Required middleware
+- Security baselines
+- Edge cases
+
+###  Builder Agent
+Implements backend logic according to the plan.
+
+###  Evaluator Agent
+Performs structured static analysis and returns:
+- Reliability score (0–100)
+- Category breakdown:
+  - Validation
+  - Authentication
+  - Secret handling
+  - Error handling
+
+### Self‑Healer Agent
+If the score falls below 85:
+- Consumes the evaluator’s findings  
+- Refactors vulnerable sections  
+- Re‑runs evaluation before final output  
+
+This demonstrates true agentic behavior:
+- Explicit role separation  
+- Multi-step reasoning  
+- Structured JSON outputs  
+- Conditional re‑execution  
+- Review loop enforcement  
+
+---
+
+##  Screenshot — Reliability Surge
+
+
+
+```md
+![Reliability Improvement](./public/reliability-surge.png)
+```
+
+---
+
+## Modes
+
+### Raw Mode
+Simulates a standard single‑pass AI generator.  
+One response. One evaluation.
+
+Provides a baseline reliability score.
+
+### Sentinel Mode
+Runs the full multi‑agent pipeline.  
+Planning → Building → Auditing → Healing → Final Score.
+
+The reliability delta makes the improvement measurable.
+
+---
+
+
+
+## Improve Existing Code
+
+Sentinel Studio can also audit user‑provided backend code.
+
+It returns:
+- Structured vulnerability report  
+- Hardened refactored version  
+- Plain‑language explanation of changes  
+
+This makes it usable beyond generation — as a lightweight reliability assistant.
+
+---
+
+## Architecture
+
+Clear separation of concerns:
+
+```
+app/
+ ├── page.tsx                → UI layer
+ ├── api/run-agents/route.ts → Orchestration layer
+lib/
+ └── agents.ts               → Codex agent logic
+```
+
+### Stack
+
+- Next.js (App Router)  
+- React + TypeScript  
+- Tailwind CSS  
+- OpenAI SDK (Codex via gpt-4o-mini)  
+- Vercel deployment  
+
+The agent system is isolated from presentation logic to keep orchestration predictable and testable.
+
+---
+
+## Codex Usage
+
+Codex is used as a reasoning engine, not a text generator.
+
+It performs:
+
+- Prompt decomposition and planning  
+- Structured backend generation  
+- Static reliability evaluation  
+- JSON‑validated reporting  
+- Conditional iterative correction  
+
+Every stage produces structured outputs before advancing to the next.
+
+---
+
+## Local Development
+
+```bash
+git clone https://github.com/DOM-ABDUL/sentinel-studio.git
+cd sentinel-studio
+npm install
+```
+
+Create `.env`:
+
+```env
+OPENAI_API_KEY=your_key_here
+```
+
+Run:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Why It Matters
 
-To learn more about Next.js, take a look at the following resources:
+As AI coding tools become default infrastructure, the risk is no longer slow development.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The risk is silent failure.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sentinel Studio focuses on reliability before trust.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Future Work
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Inline Git-style diff viewer  
+- Sandboxed runtime testing  
+- CI/CD gating by reliability score  
+- GitHub PR integration  
+
+---
+
+## Final Statement
+
+AI can write code.
+
+Sentinel Studio asks a more important question:
+
+**Should that code be trusted yet?**
+
