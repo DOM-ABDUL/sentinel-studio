@@ -61,9 +61,9 @@ to
 ## Screenshot — Main Interface
 
 
-```md
+
 ![Main Dashboard](./public/dashboard.png)
-```
+
 
 ---
 
@@ -109,9 +109,9 @@ This demonstrates true agentic behavior:
 
 
 
-```md
+
 ![Reliability Improvement](./public/reliability-surge.png)
-```
+
 
 ---
 
