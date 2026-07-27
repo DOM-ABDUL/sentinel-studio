@@ -8,7 +8,7 @@
 ## 🌐 Live Application
 
 **Deployed (No Login Required)**  
-https://sentinel-studio.vercel.app  
+https://sentinel-studio-sigma.vercel.app/ 
 
 **GitHub Repository**  
 https://github.com/DOM-ABDUL/sentinel-studio  
