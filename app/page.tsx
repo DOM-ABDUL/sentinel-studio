@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Mode = 'raw' | 'sentinel' | 'improve';
 
@@ -24,6 +24,7 @@ type RawResponse = {
     riskBreakdown: RiskBreakdown;
     confidence: Confidence;
   };
+  logs: string[]; // <-- ADD THIS
 };
 
 type HardenedResponse = {
@@ -38,6 +39,7 @@ type HardenedResponse = {
     confidence: Confidence;
   };
   improvementSummary: string;
+  logs: string[]; // <-- ADD THIS
 };
 
 const RISK_LABELS: Array<{ key: keyof RiskBreakdown; label: string }> = [
@@ -65,6 +67,7 @@ export default function HomePage() {
 
   const [logs, setLogs] = useState<string[]>([]);
   const [modeLabel, setModeLabel] = useState<string | null>(null);
+  const logRef = useRef<HTMLTextAreaElement>(null);
 
   const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown | null>(null);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
@@ -104,6 +107,11 @@ export default function HomePage() {
   setFinalScore(0);
   setAnimatedFinal(0);
 }, [activeTab]);
+useEffect(() => {
+  if (logRef.current) {
+    logRef.current.scrollTop = logRef.current.scrollHeight;
+  }
+}, [logs]);
 
   const delta = finalScore - initialScore;
   const animationComplete = hasRun && animatedFinal === finalScore;
@@ -151,7 +159,7 @@ export default function HomePage() {
 
   async function streamLogs(entries: string[]) {
     for (const entry of entries) {
-      await wait(180);
+      await wait(90);
       setLogs((prev) => [...prev, entry]);
     }
   }
@@ -197,14 +205,11 @@ export default function HomePage() {
         throw new Error('Request failed');
       }
 
-      if (mode === 'raw') {
+           if (mode === 'raw') {
         const data = (await res.json()) as RawResponse;
 
-        await streamLogs([
-          'Submitting prompt to baseline model...',
-          'Collecting reliability evaluation...',
-          'Raw benchmark complete.',
-        ]);
+        
+        await streamLogs(data.logs);
 
         const score = data.evaluation.reliabilityScore;
         setInitialScore(score);
@@ -215,17 +220,11 @@ export default function HomePage() {
         setFinalCode(null);
         setImprovementSummary(null);
         setHasRun(true);
-      } else {
+            } else {
         const data = (await res.json()) as HardenedResponse;
 
-        await streamLogs([
-          mode === 'improve'
-            ? 'Running deep static reliability audit...'
-            : 'Planning architecture with Sentinel planner...',
-          'Applying implementation safeguards...',
-          'Evaluating reliability after hardening...',
-          'Sentinel benchmark complete.',
-        ]);
+        // Stream the REAL logs from the backend
+        await streamLogs(data.logs);
 
         setInitialScore(data.initialEvaluation.reliabilityScore);
         setFinalScore(data.finalEvaluation.reliabilityScore);
@@ -264,6 +263,7 @@ export default function HomePage() {
               </div>
 
               <textarea
+              ref={logRef}
                 readOnly
                 value={logs.length ? logs.join('\n') : '[No active logs yet. Run a benchmark.]'}
                 className="h-full min-h-[420px] flex-1 resize-none rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6 text-zinc-400 outline-none"
