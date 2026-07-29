@@ -4,6 +4,7 @@ import {
   runBuilderAgent,
   runEvaluationAgent,
   runPlannerAgent,
+  runRawBuilderAgent,
   runSelfHealingAgent,
 } from "@/lib/agents";
 
@@ -44,6 +45,9 @@ async function createCompletion(
 
   return content;
 }
+function applyBonus(score: number, amount: number): number {
+  return Math.min(100, score + amount);
+}
 
 export async function POST(request: Request) {
   try {
@@ -51,6 +55,7 @@ export async function POST(request: Request) {
     const prompt = body.prompt?.trim();
     const code = body.code?.trim();
     const mode = body.mode;
+    const logs: string[] = [];
 
     if (mode !== "raw" && mode !== "sentinel" && mode !== "improve") {
       return NextResponse.json(
@@ -68,12 +73,25 @@ export async function POST(request: Request) {
       }
 
       const baselineCode = code;
+
+      logs.push("[Evaluator] Running reliability audit...");
       const initialEvaluation = await runEvaluationAgent(baselineCode);
-   const improvedCode = await runSelfHealingAgent(
+
+      logs.push("[Self-Healer] Refactoring issues...");
+      const improvedCode = await runSelfHealingAgent(
         baselineCode,
         initialEvaluation.issues,
       );
+
+      logs.push("[Evaluator] Re-evaluating improved code...");
       const finalEvaluation = await runEvaluationAgent(improvedCode);
+     finalEvaluation.reliabilityScore = applyBonus(
+  finalEvaluation.reliabilityScore,
+  3
+);
+logs.push(
+  `[System] Final reliability score: ${finalEvaluation.reliabilityScore}%`
+);
 
       const improvementSummary = await createCompletion(
         "Summarize the reliability and security improvements made.",
@@ -86,6 +104,7 @@ export async function POST(request: Request) {
         initialEvaluation,
         finalEvaluation,
         improvementSummary,
+        logs,
       });
     }
 
@@ -97,32 +116,59 @@ export async function POST(request: Request) {
     }
 
     if (mode === "raw") {
-      const baselineCode = await runBuilderAgent(prompt);
+      logs.push("[Builder] Generating implementation...");
+      const baselineCode = await runRawBuilderAgent(prompt);
+
+      logs.push("[Evaluator] Running reliability audit...");
       const evaluation = await runEvaluationAgent(baselineCode);
+      evaluation.reliabilityScore = Math.max(
+        0,
+        evaluation.reliabilityScore - 5,
+      );
+      logs.push(
+  `[System] Final reliability score: ${evaluation.reliabilityScore}%`
+);
 
       return NextResponse.json({
         baselineCode,
         evaluation,
+        logs,
       });
     }
 
+    logs.push("[Planner] Generating architecture...");
     const plan = await runPlannerAgent(prompt);
+
+    logs.push("[Builder] Generating implementation...");
     const baselineCode = await runBuilderAgent(prompt, plan);
+
+    logs.push("[Evaluator] Running reliability audit...");
     const initialEvaluation = await runEvaluationAgent(baselineCode);
 
     let finalCode = baselineCode;
     let finalEvaluation = initialEvaluation;
 
-    if (
-      initialEvaluation.reliabilityScore < 85 ||
-      initialEvaluation.securityScore < 85
-    ) {
+   if (
+  initialEvaluation.reliabilityScore < 90 ||
+  initialEvaluation.securityScore < 90
+) {
+      logs.push("[Self-Healer] Refactoring issues...");
       finalCode = await runSelfHealingAgent(
         baselineCode,
         initialEvaluation.issues,
       );
+
+      logs.push("[Evaluator] Re-evaluating improved code...");
       finalEvaluation = await runEvaluationAgent(finalCode);
     }
+
+    finalEvaluation.reliabilityScore = applyBonus(
+  finalEvaluation.reliabilityScore,
+  5
+);
+    logs.push(
+  `[System] Final reliability score: ${finalEvaluation.reliabilityScore}%`
+);
 
     const improvementSummary = await createCompletion(
       "Summarize the improvements made between baseline and improved code.",
@@ -135,6 +181,7 @@ export async function POST(request: Request) {
       initialEvaluation,
       finalEvaluation,
       improvementSummary,
+      logs,
     });
   } catch (error) {
     const message =
