@@ -64,10 +64,14 @@ export default function HomePage() {
   const [initialScore, setInitialScore] = useState(0);
   const [finalScore, setFinalScore] = useState(0);
   const [animatedFinal, setAnimatedFinal] = useState(0);
+  type LogEntry = {
+  message: string;
+  timestamp: string;
+};
 
-  const [logs, setLogs] = useState<string[]>([]);
+const [logs, setLogs] = useState<LogEntry[]>([]);
   const [modeLabel, setModeLabel] = useState<string | null>(null);
-  const logRef = useRef<HTMLTextAreaElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
   const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown | null>(null);
   const [confidence, setConfidence] = useState<Confidence | null>(null);
@@ -75,6 +79,7 @@ export default function HomePage() {
   const [baselineCode, setBaselineCode] = useState<string | null>(null);
   const [finalCode, setFinalCode] = useState<string | null>(null);
   const [improvementSummary, setImprovementSummary] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<'baseline' | 'final' | null>(null);
 
   useEffect(() => {
     if (!hasRun || finalScore <= 0) return;
@@ -156,13 +161,33 @@ useEffect(() => {
       bgClass: 'bg-rose-400/10',
     };
   }, [finalScore, hasRun]);
+function formatTime() {
+  const now = new Date();
+  return now.toLocaleTimeString();
+}
 
-  async function streamLogs(entries: string[]) {
-    for (const entry of entries) {
-      await wait(90);
-      setLogs((prev) => [...prev, entry]);
-    }
+async function streamLogs(entries: string[]) {
+  
+  for (const entry of entries) {
+    await wait(120);
+    setLogs((prev) => [
+      ...prev,
+      { message: entry, timestamp: formatTime() },
+    ]);
   }
+}
+async function copyCode(code: string, type: 'baseline' | 'final') {
+  try {
+    await navigator.clipboard.writeText(code);
+    setCopiedCode(type);
+
+    setTimeout(() => {
+      setCopiedCode(null);
+    }, 1500);
+  } catch {
+    setCopiedCode(null);
+  }
+}
 
   async function runBenchmark(mode: Mode) {
     const isImprove = mode === 'improve';
@@ -235,9 +260,15 @@ await wait(50);
         setImprovementSummary(data.improvementSummary);
         setHasRun(true);
       }
-    } catch {
-      setLogs((prev) => [...prev, 'Benchmark run failed. Please try again.']);
-    } finally {
+   } catch {
+  setLogs((prev) => [
+    ...prev,
+    {
+      message: 'Benchmark run failed. Please try again.',
+      timestamp: formatTime(),
+    },
+  ]);
+} finally {
       setLoading(false);
     }
   }
@@ -262,12 +293,36 @@ await wait(50);
                 </span>
               </div>
 
-              <textarea
-              ref={logRef}
-                readOnly
-                value={logs.length ? logs.join('\n') : '[No active logs yet. Run a benchmark.]'}
-                className="h-full min-h-[420px] flex-1 resize-none rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6 text-zinc-400 outline-none"
-              />
+              
+              <div
+  ref={logRef}
+  className="h-full min-h-[420px] flex-1 overflow-y-auto rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6"
+>
+  {logs.length === 0 ? (
+    <div className="text-zinc-500">
+      [No active logs yet. Run a benchmark.]
+    </div>
+  ) : (
+    logs.map((log, index) => {
+      let color = "text-zinc-400";
+
+      if (log.message.includes("[Planner]")) color = "text-cyan-400";
+      else if (log.message.includes("[Builder]")) color = "text-blue-400";
+      else if (log.message.includes("[Evaluator]")) color = "text-amber-400";
+      else if (log.message.includes("[Self-Healer]")) color = "text-rose-400";
+      else if (log.message.includes("[System]")) color = "text-emerald-400";
+
+      return (
+        <div key={index} className={`mb-1 ${color}`}>
+          <span className="text-zinc-500">
+            [{log.timestamp}]
+          </span>{" "}
+          {log.message}
+        </div>
+      );
+    })
+  )}
+</div>
             </div>
           </aside>
 
@@ -379,22 +434,45 @@ await wait(50);
                   </p>
                 )}
 
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-4">
-                    <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">Baseline Output</p>
-                    <pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
-                      {baselineCode ?? '--'}
-                    </pre>
-                  </div>
+                <div className="mb-2 flex items-center justify-between">
+  <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">
+    Baseline Output
+  </p>
+
+  {baselineCode && (
+    <button
+      type="button"
+      onClick={() => copyCode(baselineCode, 'baseline')}
+      className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 transition hover:bg-zinc-800"
+    >
+      {copiedCode === 'baseline' ? 'Copied' : 'Copy'}
+    </button>
+  )}
+</div>
+<pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
+  {baselineCode ?? '--'}
+</pre>
 
                   {finalCode !== null && (
                     <>
-                      <div className="rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-4">
-                        <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">Improved Output</p>
-                        <pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
-                          {finalCode}
-                        </pre>
-                      </div>
+                      <div className="mb-2 flex items-center justify-between">
+  <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-400">
+    Improved Output
+  </p>
+
+  {finalCode && (
+    <button
+      type="button"
+      onClick={() => copyCode(finalCode, 'final')}
+      className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 transition hover:bg-cyan-500/20"
+    >
+      {copiedCode === 'final' ? 'Copied' : 'Copy'}
+    </button>
+  )}
+</div>
+<pre className="max-h-64 overflow-auto rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 font-mono text-xs leading-6 text-zinc-300 whitespace-pre-wrap break-words">
+  {finalCode}
+</pre>
 
                       <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
                         <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-cyan-200/80">
