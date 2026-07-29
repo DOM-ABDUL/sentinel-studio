@@ -483,7 +483,7 @@ await wait(50);
                     </>
                   )}
                 </div>
-              </div>
+              
             )}
           </section>
 
