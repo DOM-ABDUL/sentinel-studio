@@ -179,15 +179,15 @@ useEffect(() => {
     setImprovementSummary(null);
 
     if (mode === 'raw') {
-      setModeLabel('Raw AI Mode');
-      setLogs(['Running Raw AI baseline benchmark...']);
-    } else if (mode === 'sentinel') {
-      setModeLabel('Sentinel Mode');
-      setLogs(['Initializing Sentinel multi-agent pipeline...']);
-    } else {
-      setModeLabel('Improve Existing Code');
-      setLogs(['Auditing submitted code with Sentinel...']);
-    }
+  setModeLabel('Raw AI Mode');
+} else if (mode === 'sentinel') {
+  setModeLabel('Sentinel Mode');
+} else {
+  setModeLabel('Improve Existing Code');
+}
+
+setLogs([]); 
+await wait(50);
 
     try {
       const body =

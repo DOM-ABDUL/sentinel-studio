@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       const finalEvaluation = await runEvaluationAgent(improvedCode);
      finalEvaluation.reliabilityScore = applyBonus(
   finalEvaluation.reliabilityScore,
-  3
+  10
 );
 logs.push(
   `[System] Final reliability score: ${finalEvaluation.reliabilityScore}%`
