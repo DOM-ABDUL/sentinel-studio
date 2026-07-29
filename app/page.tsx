@@ -163,7 +163,12 @@ useEffect(() => {
   }, [finalScore, hasRun]);
 function formatTime() {
   const now = new Date();
-  return now.toLocaleTimeString();
+
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  const seconds = now.getSeconds().toString().padStart(2, '0');
+
+  return `${hours}:${minutes}:${seconds}`;
 }
 
 async function streamLogs(entries: string[]) {
@@ -177,18 +182,29 @@ async function streamLogs(entries: string[]) {
   }
 }
 async function copyCode(code: string, type: 'baseline' | 'final') {
+  if (!code) return;
+
   try {
-    await navigator.clipboard.writeText(code);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(code);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = code;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+
     setCopiedCode(type);
 
     setTimeout(() => {
       setCopiedCode(null);
     }, 1500);
-  } catch {
-    setCopiedCode(null);
+  } catch (err) {
+    console.error("Copy failed:", err);
   }
 }
-
   async function runBenchmark(mode: Mode) {
     const isImprove = mode === 'improve';
     const promptInput = prompt.trim();
@@ -445,7 +461,7 @@ await wait(50);
       onClick={() => copyCode(baselineCode, 'baseline')}
       className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 transition hover:bg-zinc-800"
     >
-      {copiedCode === 'baseline' ? 'Copied' : 'Copy'}
+      {copiedCode === 'baseline' ? '✅ Copied!' : 'Copy'}
     </button>
   )}
 </div>
@@ -466,7 +482,7 @@ await wait(50);
       onClick={() => copyCode(finalCode, 'final')}
       className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 transition hover:bg-cyan-500/20"
     >
-      {copiedCode === 'final' ? 'Copied' : 'Copy'}
+      {copiedCode === 'final' ? '✅ Copied!' : 'Copy'}
     </button>
   )}
 </div>
