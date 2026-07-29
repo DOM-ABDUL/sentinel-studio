@@ -1,7 +1,4 @@
-import "dotenv/config";
 import OpenAI from "openai";
-
-
 
 const MODEL = "gpt-4o-mini";
 const TEMPERATURE = 0.4;
@@ -34,7 +31,6 @@ type EvaluationResponse = {
 };
 
 function getOpenAI(): OpenAI {
-  console.log("ENV KEY:", process.env.OPENAI_API_KEY);
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -219,15 +215,14 @@ async function createCompletion(
     }
 
     return content;
-  }    catch (error) {
-  if (error instanceof Error) {
-    throw new Error(`OpenAI completion failed: ${error.message}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`OpenAI completion failed: ${error.message}`);
+    }
+
+    throw new Error("OpenAI completion failed.");
   }
-
-  throw new Error("OpenAI completion failed.");
 }
-}
-
 
 export async function runPlannerAgent(
   userPrompt: string,
@@ -237,8 +232,8 @@ export async function runPlannerAgent(
   }
 
   const content = await createCompletion(
-    `You are a senior software architect. Create a practical architecture plan.
-Return strict JSON only with exactly these fields:
+    `Create an architecture plan for the user request.
+Return only valid JSON with exactly these fields:
 {
   "techStack": ["string"],
   "fileStructure": ["string"],
@@ -247,7 +242,7 @@ Return strict JSON only with exactly these fields:
   "securityConsiderations": ["string"],
   "edgeCases": ["string"]
 }
-Do not include markdown, explanations, or additional fields.`,
+Do not return Markdown, prose, or additional fields.`,
     userPrompt,
     true,
   );
@@ -255,6 +250,22 @@ Do not include markdown, explanations, or additional fields.`,
   return validatePlannerResponse(extractJson(content));
 }
 
+// The Raw builder is intentionally minimal so it can provide an unguarded baseline
+// for comparing simple generated code against Sentinel's production-focused output.
+export async function runRawBuilderAgent(userPrompt: string): Promise<string> {
+  if (!userPrompt.trim()) {
+    throw new Error("A user prompt is required for the raw builder agent.");
+  }
+
+  return createCompletion(
+    "Generate minimal code that implements the user request.Avoid adding extra validation or defensive enhancements unless explicitly required.Return plain code only. Do not return Markdown fences or explanations.",
+    userPrompt,
+    false,
+  );
+}
+
+// The Sentinel builder is stricter because it generates code intended for real
+// backend use, where security, reliability, and maintainability are required.
 export async function runBuilderAgent(
   userPrompt: string,
   plan?: unknown,
@@ -274,9 +285,14 @@ export async function runBuilderAgent(
   }
 
   return createCompletion(
-    `You are a backend engineer. Produce production-ready backend code.
-Use only standard, common, or explicitly requested libraries. Do not invent imports or dependencies.
-Include input validation and meaningful error handling. Return plain code only, with no markdown fences or explanations.`,
+    `Generate backend code that implements the user request and provided plan.
+Use only standard, common, or explicitly requested libraries. Do not invent imports, packages, APIs, or dependencies.
+Validate external inputs before use. Use safe defaults, null checks, type-safe boundaries, and explicit preconditions.
+Handle errors with clear, structured control flow. Do not expose sensitive internal details.
+Do not hardcode secrets, API keys, credentials, tokens, or connection strings.
+Handle invalid input, missing data, dependency failures, and relevant unexpected states.
+Use focused functions, clear responsibilities, and readable names.
+Return plain code only. Do not return Markdown fences or explanations.`,
     `User request:\n${userPrompt}${planDetails}`,
     false,
   );
@@ -290,8 +306,8 @@ export async function runEvaluationAgent(
   }
 
   const content = await createCompletion(
-    `You are a security and reliability reviewer. Analyze the supplied code for missing validation, hardcoded secrets, security risks, hallucinated imports, and weak error handling.
-Return strict JSON only with exactly these lowercase keys:
+    `Review the supplied code for missing validation, hardcoded secrets, security risks, hallucinated imports, and weak error handling.
+Return only valid JSON with exactly these lowercase keys:
 {
   "reliabilityScore": 0,
   "securityScore": 0,
@@ -309,7 +325,7 @@ Return strict JSON only with exactly these lowercase keys:
   },
   "issues": ["string"]
 }
-Scores must be numbers from 0 through 100. Do not include markdown, explanations, or additional fields.`,
+Scores must be numbers from 0 through 100. Do not return Markdown, prose, or additional fields.`,
     code,
     true,
   );
@@ -317,6 +333,8 @@ Scores must be numbers from 0 through 100. Do not include markdown, explanations
   return validateEvaluationResponse(extractJson(content));
 }
 
+// The Self-Healer is intentionally aggressive so it resolves the complete issue
+// set through a coherent rewrite instead of leaving fragile partial patches behind.
 export async function runSelfHealingAgent(
   code: string,
   issues: string[],
@@ -330,11 +348,13 @@ export async function runSelfHealingAgent(
   }
 
   return createCompletion(
-    `You are a senior backend engineer. Fix the listed issues while preserving the code's intended behavior.
-Improve validation, reliability, security, and error handling where appropriate.
-Do not introduce unverified libraries or hallucinated imports.
-Return improved plain code only, with no markdown fences or explanations.`,
-    `Code:\n${code}\n\nIssues to fix:\n${issues.map((issue) => `- ${issue}`).join("\n")}`,
+    `Rewrite the supplied code to resolve every listed issue.
+Preserve the intended functionality and externally expected behavior.
+Improve structure, clarity, validation, error handling, security, and reliability.
+Remove hardcoded secrets and unsafe patterns. Handle relevant edge cases and failure paths.
+Use only standard, common, or explicitly requested libraries. Do not invent imports, packages, APIs, or dependencies.
+Return plain code only. Do not return Markdown fences or explanations.`,
+    `Original code:\n${code}\n\nIssues to resolve:\n${issues.map((issue) => `- ${issue}`).join("\n")}`,
     false,
   );
 }
