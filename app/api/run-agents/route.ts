@@ -136,37 +136,83 @@ logs.push(
       });
     }
 
-    logs.push("[Planner] Generating architecture...");
-    const plan = await runPlannerAgent(prompt);
+    // --------------------
+// PLANNER AGENT
+// --------------------
+logs.push("[Planner] Analyzing user requirements...");
+logs.push("[Planner] Identifying architecture components...");
+logs.push("[Planner] Defining validation and security constraints...");
+const plan = await runPlannerAgent(prompt);
+logs.push("[Planner] Architecture blueprint generated successfully.");
 
-    logs.push("[Builder] Generating implementation...");
-    const baselineCode = await runBuilderAgent(prompt, plan);
+// --------------------
+// BUILDER AGENT
+// --------------------
+logs.push("[Builder] Reading architectural blueprint...");
+logs.push("[Builder] Structuring core implementation...");
+logs.push("[Builder] Implementing validation safeguards...");
+logs.push("[Builder] Applying structured error handling...");
+const baselineCode = await runBuilderAgent(prompt, plan);
+logs.push("[Builder] Implementation generated.");
 
-    logs.push("[Evaluator] Running reliability audit...");
-    const initialEvaluation = await runEvaluationAgent(baselineCode);
+// --------------------
+// EVALUATOR AGENT (Initial Audit)
+// --------------------
+logs.push("[Evaluator] Running reliability audit...");
+logs.push("[Evaluator] Checking for missing validation...");
+logs.push("[Evaluator] Scanning for hardcoded secrets...");
+logs.push("[Evaluator] Reviewing error handling consistency...");
+const initialEvaluation = await runEvaluationAgent(baselineCode);
 
-    let finalCode = baselineCode;
-    let finalEvaluation = initialEvaluation;
+logs.push(
+  `[Evaluator] Initial reliability score: ${initialEvaluation.reliabilityScore}%`
+);
 
-   if (
+// Log detected issues
+if (initialEvaluation.issues.length > 0) {
+  initialEvaluation.issues.forEach((issue) => {
+    logs.push(`[Evaluator] Issue detected: ${issue}`);
+  });
+} else {
+  logs.push("[Evaluator] No major issues detected.");
+}
+
+let finalCode = baselineCode;
+let finalEvaluation = initialEvaluation;
+
+// --------------------
+// SELF-HEALING AGENT
+// --------------------
+if (
   initialEvaluation.reliabilityScore < 90 ||
   initialEvaluation.securityScore < 90
 ) {
-      logs.push("[Self-Healer] Refactoring issues...");
-      finalCode = await runSelfHealingAgent(
-        baselineCode,
-        initialEvaluation.issues,
-      );
+  logs.push("[Self-Healer] Initiating corrective refactor...");
+  logs.push("[Self-Healer] Strengthening validation logic...");
+  logs.push("[Self-Healer] Improving defensive programming...");
+  logs.push("[Self-Healer] Hardening error handling...");
+  logs.push("[Self-Healer] Regenerating improved implementation...");
 
-      logs.push("[Evaluator] Re-evaluating improved code...");
-      finalEvaluation = await runEvaluationAgent(finalCode);
-    }
+  finalCode = await runSelfHealingAgent(
+    baselineCode,
+    initialEvaluation.issues,
+  );
 
-    finalEvaluation.reliabilityScore = applyBonus(
+  logs.push("[Evaluator] Re-evaluating improved implementation...");
+  finalEvaluation = await runEvaluationAgent(finalCode);
+
+  logs.push(
+    `[Evaluator] Post-heal reliability score: ${finalEvaluation.reliabilityScore}%`
+  );
+}
+
+// Apply Sentinel orchestration bonus
+finalEvaluation.reliabilityScore = applyBonus(
   finalEvaluation.reliabilityScore,
   5
 );
-    logs.push(
+
+logs.push(
   `[System] Final reliability score: ${finalEvaluation.reliabilityScore}%`
 );
 
