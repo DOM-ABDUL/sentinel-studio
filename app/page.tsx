@@ -402,7 +402,9 @@ reasons.push(
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-6 sm:px-6 lg:px-8">
         <header className="pb-8 pt-2 text-center">
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-50 sm:text-4xl">Sentinel Studio</h1>
-          <p className="mt-2 text-sm text-zinc-400 sm:text-base">AI Reliability Benchmarking System</p>
+         <p className="mt-2 text-sm text-cyan-300/90 sm:text-base">
+  Multi-Agent AI Code Reliability & Self-Healing System
+</p>
           {modeLabel && <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-400">{modeLabel}</p>}
           <div className="mx-auto mt-5 h-px w-56 bg-gradient-to-r from-transparent via-cyan-400/80 to-transparent" />
         </header>
@@ -443,11 +445,29 @@ reasons.push(
                 </div>
               </div>
 
-              <textarea
-                readOnly
-                value={logs.length ? logs.join('\n') : '[No active logs yet. Run a benchmark.]'}
-                className="h-full min-h-[420px] flex-1 resize-none rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6 text-zinc-400 outline-none"
-              />
+             <div className="h-full min-h-[420px] flex-1 overflow-y-auto rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6">
+  {logs.length === 0 ? (
+    <div className="text-zinc-500">
+      [No active logs yet. Run a benchmark.]
+    </div>
+  ) : (
+    logs.map((line, index) => {
+      let color = 'text-zinc-400';
+
+      if (line.includes('[Planner]')) color = 'text-cyan-400';
+      else if (line.includes('[Builder]')) color = 'text-blue-400';
+      else if (line.includes('[Evaluator]')) color = 'text-amber-400';
+      else if (line.includes('[Self-Healer]')) color = 'text-rose-400';
+      else if (line.includes('[System]')) color = 'text-emerald-400';
+
+      return (
+        <div key={index} className={`mb-1 ${color}`}>
+          {line}
+        </div>
+      );
+    })
+  )}
+</div>
             </div>
           </aside>
 

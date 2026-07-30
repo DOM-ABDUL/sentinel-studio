@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 const MODELS = {
+  raw: "gpt-3.5-turbo",
   planner: "gpt-4.1",
   builder: "gpt-4.1",
   evaluator: "gpt-4.1",
@@ -336,11 +337,11 @@ export async function runRawBuilderAgent(
 
   emitLog(onLog, "[Builder] Generating implementation...");
   const code = await createCompletion(
-  MODELS.builder,
-    "Generate minimal code that implements the user request. Avoid adding validation or defensive enhancements unless explicitly required. Return plain code only. Do not return Markdown fences or explanations.",
-    prompt,
-    false,
-  );
+  MODELS.raw,  
+  "Generate naive, minimal code that implements the user request. Do not add validation, defensive programming, or security checks. Return plain code only.",
+  prompt,
+  false,
+);
 
   emitLog(onLog, "[Builder] Implementation generated.");
 
