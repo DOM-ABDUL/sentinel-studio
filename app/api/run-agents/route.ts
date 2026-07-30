@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       const finalEvaluation = await runEvaluationAgent(improvedCode);
      finalEvaluation.reliabilityScore = applyBonus(
   finalEvaluation.reliabilityScore,
-  10
+  5
 );
 logs.push(
   `[System] Final reliability score: ${finalEvaluation.reliabilityScore}%`
@@ -209,7 +209,7 @@ if (
 // Apply Sentinel orchestration bonus
 finalEvaluation.reliabilityScore = applyBonus(
   finalEvaluation.reliabilityScore,
-  5
+  10
 );
 
 logs.push(

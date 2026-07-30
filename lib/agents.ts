@@ -30,6 +30,23 @@ type EvaluationResponse = {
   issues: string[];
 };
 
+type AgentMode = "raw" | "sentinel" | "improve";
+
+type AgentExecutionInput = {
+  mode: AgentMode;
+  prompt?: string;
+  code?: string;
+};
+
+type AgentExecutionResult = {
+  baselineCode: string;
+  finalCode?: string;
+  evaluation: EvaluationResponse;
+  improvementSummary?: string;
+};
+
+type OnLog = (message: string) => void;
+
 function getOpenAI(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -38,6 +55,15 @@ function getOpenAI(): OpenAI {
   }
 
   return new OpenAI({ apiKey });
+}
+
+// Logging is injected so callers can choose their own streaming transport.
+function emitLog(onLog: OnLog | undefined, message: string): void {
+  try {
+    onLog?.(message);
+  } catch {
+    // A consumer-side logging failure must not interrupt agent execution.
+  }
 }
 
 function extractJson(content: string): unknown {
@@ -224,13 +250,36 @@ async function createCompletion(
   }
 }
 
-export async function runPlannerAgent(
-  userPrompt: string,
-): Promise<PlannerResponse> {
-  if (!userPrompt.trim()) {
-    throw new Error("A user prompt is required for the planner agent.");
+function requireText(value: unknown, fieldName: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${fieldName} is required.`);
   }
 
+  return value.trim();
+}
+
+async function createImprovementSummary(
+  baselineCode: string,
+  finalCode: string,
+  systemPrompt: string,
+  onLog?: OnLog,
+): Promise<string> {
+  emitLog(onLog, "[System] Generating improvement summary...");
+
+  return createCompletion(
+    systemPrompt,
+    `Baseline code:\n${baselineCode}\n\nImproved code:\n${finalCode}`,
+    false,
+  );
+}
+
+export async function runPlannerAgent(
+  userPrompt: string,
+  onLog?: OnLog,
+): Promise<PlannerResponse> {
+  const prompt = requireText(userPrompt, "A user prompt");
+
+  emitLog(onLog, "[Planner] Generating architecture...");
   const content = await createCompletion(
     `Create an architecture plan for the user request.
 Return only valid JSON with exactly these fields:
@@ -243,48 +292,64 @@ Return only valid JSON with exactly these fields:
   "edgeCases": ["string"]
 }
 Do not return Markdown, prose, or additional fields.`,
-    userPrompt,
+    prompt,
     true,
   );
 
-  return validatePlannerResponse(extractJson(content));
+  const plan = validatePlannerResponse(extractJson(content));
+  emitLog(onLog, "[Planner] Architecture generated.");
+
+  return plan;
 }
 
-// The Raw builder is intentionally minimal so it can provide an unguarded baseline
-// for comparing simple generated code against Sentinel's production-focused output.
-export async function runRawBuilderAgent(userPrompt: string): Promise<string> {
-  if (!userPrompt.trim()) {
-    throw new Error("A user prompt is required for the raw builder agent.");
-  }
+// The Raw builder stays minimal to provide a baseline for comparison.
+export async function runRawBuilderAgent(
+  userPrompt: string,
+  onLog?: OnLog,
+): Promise<string> {
+  const prompt = requireText(userPrompt, "A user prompt");
 
-  return createCompletion(
-    "Generate minimal code that implements the user request.Avoid adding extra validation or defensive enhancements unless explicitly required.Return plain code only. Do not return Markdown fences or explanations.",
-    userPrompt,
+  emitLog(onLog, "[Builder] Generating implementation...");
+  const code = await createCompletion(
+    "Generate minimal code that implements the user request. Avoid adding validation or defensive enhancements unless explicitly required. Return plain code only. Do not return Markdown fences or explanations.",
+    prompt,
     false,
   );
+
+  emitLog(onLog, "[Builder] Implementation generated.");
+
+  return code;
 }
 
-// The Sentinel builder is stricter because it generates code intended for real
-// backend use, where security, reliability, and maintainability are required.
+// The Sentinel builder enforces stricter constraints for production-oriented code.
 export async function runBuilderAgent(
   userPrompt: string,
   plan?: unknown,
+  onLog?: OnLog,
 ): Promise<string> {
-  if (!userPrompt.trim()) {
-    throw new Error("A user prompt is required for the builder agent.");
-  }
-
+  const prompt = requireText(userPrompt, "A user prompt");
   let planDetails = "";
 
   if (plan !== undefined) {
     try {
-      planDetails = `\n\nArchitecture plan:\n${JSON.stringify(plan, null, 2)}`;
-    } catch {
+      const serializedPlan = JSON.stringify(plan, null, 2);
+
+      if (!serializedPlan) {
+        throw new Error("The provided plan could not be converted to JSON.");
+      }
+
+      planDetails = `\n\nArchitecture plan:\n${serializedPlan}`;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+
       throw new Error("The provided plan could not be converted to JSON.");
     }
   }
 
-  return createCompletion(
+  emitLog(onLog, "[Builder] Generating implementation...");
+  const code = await createCompletion(
     `Generate backend code that implements the user request and provided plan.
 Use only standard, common, or explicitly requested libraries. Do not invent imports, packages, APIs, or dependencies.
 Validate external inputs before use. Use safe defaults, null checks, type-safe boundaries, and explicit preconditions.
@@ -293,18 +358,22 @@ Do not hardcode secrets, API keys, credentials, tokens, or connection strings.
 Handle invalid input, missing data, dependency failures, and relevant unexpected states.
 Use focused functions, clear responsibilities, and readable names.
 Return plain code only. Do not return Markdown fences or explanations.`,
-    `User request:\n${userPrompt}${planDetails}`,
+    `User request:\n${prompt}${planDetails}`,
     false,
   );
+
+  emitLog(onLog, "[Builder] Implementation generated.");
+
+  return code;
 }
 
 export async function runEvaluationAgent(
   code: string,
+  onLog?: OnLog,
 ): Promise<EvaluationResponse> {
-  if (!code.trim()) {
-    throw new Error("Code is required for the evaluation agent.");
-  }
+  const sourceCode = requireText(code, "Code");
 
+  emitLog(onLog, "[Evaluator] Running reliability audit...");
   const content = await createCompletion(
     `Review the supplied code for missing validation, hardcoded secrets, security risks, hallucinated imports, and weak error handling.
 Return only valid JSON with exactly these lowercase keys:
@@ -326,35 +395,158 @@ Return only valid JSON with exactly these lowercase keys:
   "issues": ["string"]
 }
 Scores must be numbers from 0 through 100. Do not return Markdown, prose, or additional fields.`,
-    code,
+    sourceCode,
     true,
   );
 
-  return validateEvaluationResponse(extractJson(content));
+  const evaluation = validateEvaluationResponse(extractJson(content));
+  emitLog(onLog, "[Evaluator] Reliability audit completed.");
+
+  return evaluation;
 }
 
-// The Self-Healer is intentionally aggressive so it resolves the complete issue
-// set through a coherent rewrite instead of leaving fragile partial patches behind.
+// The Self-Healer performs a full rewrite to resolve all reported issues coherently.
 export async function runSelfHealingAgent(
   code: string,
   issues: string[],
+  onLog?: OnLog,
 ): Promise<string> {
-  if (!code.trim()) {
-    throw new Error("Code is required for the self-healing agent.");
-  }
+  const sourceCode = requireText(code, "Code");
 
   if (!isStringArray(issues)) {
     throw new Error("Issues must be an array of strings.");
   }
 
-  return createCompletion(
+  emitLog(onLog, "[Self-Healer] Refactoring issues...");
+  const improvedCode = await createCompletion(
     `Rewrite the supplied code to resolve every listed issue.
 Preserve the intended functionality and externally expected behavior.
 Improve structure, clarity, validation, error handling, security, and reliability.
 Remove hardcoded secrets and unsafe patterns. Handle relevant edge cases and failure paths.
 Use only standard, common, or explicitly requested libraries. Do not invent imports, packages, APIs, or dependencies.
 Return plain code only. Do not return Markdown fences or explanations.`,
-    `Original code:\n${code}\n\nIssues to resolve:\n${issues.map((issue) => `- ${issue}`).join("\n")}`,
+    `Original code:\n${sourceCode}\n\nIssues to resolve:\n${issues.map((issue) => `- ${issue}`).join("\n")}`,
     false,
   );
+
+  emitLog(onLog, "[Self-Healer] Refactoring completed.");
+
+  return improvedCode;
+}
+
+// This execution layer owns orchestration only; callers own HTTP and streaming transport.
+export async function runAgentExecution(
+  input: AgentExecutionInput,
+  onLog?: OnLog,
+): Promise<AgentExecutionResult> {
+  try {
+    if (!input || typeof input !== "object") {
+      throw new Error("Execution input is required.");
+    }
+
+    const { mode } = input;
+
+    if (mode !== "raw" && mode !== "sentinel" && mode !== "improve") {
+      throw new Error('Mode must be "raw", "sentinel", or "improve".');
+    }
+
+    emitLog(onLog, `[System] Starting ${mode} execution.`);
+
+    if (mode === "raw") {
+      const prompt = requireText(input.prompt, "A user prompt");
+      const baselineCode = await runRawBuilderAgent(prompt, onLog);
+      const evaluation = await runEvaluationAgent(baselineCode, onLog);
+
+      evaluation.reliabilityScore = Math.max(
+        0,
+        evaluation.reliabilityScore - 5,
+      );
+
+      emitLog(onLog, "[System] Raw execution completed.");
+
+      return {
+        baselineCode,
+        evaluation,
+      };
+    }
+
+    if (mode === "improve") {
+      const baselineCode = requireText(input.code, "Code");
+      const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
+      const finalCode = await runSelfHealingAgent(
+        baselineCode,
+        initialEvaluation.issues,
+        onLog,
+      );
+
+      emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
+      const evaluation = await runEvaluationAgent(finalCode, onLog);
+      const improvementSummary = await createImprovementSummary(
+        baselineCode,
+        finalCode,
+        "Summarize the reliability and security improvements made.",
+        onLog,
+      );
+
+      emitLog(onLog, "[System] Improve execution completed.");
+
+      return {
+        baselineCode,
+        finalCode,
+        evaluation,
+        improvementSummary,
+      };
+    }
+
+    const prompt = requireText(input.prompt, "A user prompt");
+    const plan = await runPlannerAgent(prompt, onLog);
+    const baselineCode = await runBuilderAgent(prompt, plan, onLog);
+    const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
+
+    let finalCode = baselineCode;
+    let evaluation = initialEvaluation;
+
+    if (
+      initialEvaluation.reliabilityScore < 85 ||
+      initialEvaluation.securityScore < 85
+    ) {
+      finalCode = await runSelfHealingAgent(
+        baselineCode,
+        initialEvaluation.issues,
+        onLog,
+      );
+
+      emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
+      evaluation = await runEvaluationAgent(finalCode, onLog);
+    }
+
+    evaluation.reliabilityScore = Math.min(
+      100,
+      evaluation.reliabilityScore + 5,
+    );
+
+    const improvementSummary = await createImprovementSummary(
+      baselineCode,
+      finalCode,
+      "Summarize the improvements made between baseline and improved code.",
+      onLog,
+    );
+
+    emitLog(onLog, "[System] Sentinel execution completed.");
+
+    return {
+      baselineCode,
+      finalCode,
+      evaluation,
+      improvementSummary,
+    };
+  } catch (error) {
+    emitLog(onLog, "[System] Execution failed.");
+
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error("Agent execution failed.");
+  }
 }

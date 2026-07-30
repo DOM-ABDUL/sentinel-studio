@@ -49,6 +49,7 @@ const RISK_LABELS: Array<{ key: keyof RiskBreakdown; label: string }> = [
   { key: 'errorHandling', label: 'Error Handling' },
 ];
 
+
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -71,6 +72,7 @@ export default function HomePage() {
 
 const [logs, setLogs] = useState<LogEntry[]>([]);
   const [modeLabel, setModeLabel] = useState<string | null>(null);
+  
   const logRef = useRef<HTMLDivElement>(null);
 
   const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown | null>(null);
@@ -172,9 +174,9 @@ function formatTime() {
 }
 
 async function streamLogs(entries: string[]) {
-  
   for (const entry of entries) {
     await wait(120);
+
     setLogs((prev) => [
       ...prev,
       { message: entry, timestamp: formatTime() },
@@ -301,46 +303,39 @@ await wait(50);
 
         <section className="grid flex-1 grid-cols-1 gap-5 lg:grid-cols-12">
           <aside className="lg:col-span-3 xl:col-span-2">
-            <div className="flex h-full min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/45 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Agent Activity</h2>
-                <span className="rounded-full border border-zinc-700 bg-zinc-900/80 px-2 py-0.5 text-[10px] text-zinc-400">
-                  Stream
-                </span>
-              </div>
-
-              
-              <div
-  ref={logRef}
-  className="h-full min-h-[420px] flex-1 overflow-y-auto rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6"
->
-  {logs.length === 0 ? (
-    <div className="text-zinc-500">
-      [No active logs yet. Run a benchmark.]
+  <div className="flex h-full min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/45 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+    
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">
+        Agent Activity
+      </h2>
+      <span className="rounded-full border border-zinc-700 bg-zinc-900/80 px-2 py-0.5 text-[10px] text-zinc-400">
+        Streaming
+      </span>
     </div>
-  ) : (
-    logs.map((log, index) => {
-      let color = "text-zinc-400";
 
-      if (log.message.includes("[Planner]")) color = "text-cyan-400";
-      else if (log.message.includes("[Builder]")) color = "text-blue-400";
-      else if (log.message.includes("[Evaluator]")) color = "text-amber-400";
-      else if (log.message.includes("[Self-Healer]")) color = "text-rose-400";
-      else if (log.message.includes("[System]")) color = "text-emerald-400";
-
-      return (
-        <div key={index} className={`mb-1 ${color}`}>
-          <span className="text-zinc-500">
-            [{log.timestamp}]
-          </span>{" "}
-          {log.message}
+    <div
+      ref={logRef}
+      className="h-full min-h-[420px] flex-1 overflow-y-auto rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-3 text-xs leading-6"
+    >
+      {logs.length === 0 ? (
+        <div className="text-zinc-500">
+          [No active logs yet. Run a benchmark.]
         </div>
-      );
-    })
-  )}
-</div>
-            </div>
-          </aside>
+      ) : (
+        logs.map((log, index) => (
+          <div key={index} className="mb-1 text-zinc-300">
+            <span className="text-zinc-500">
+              [{log.timestamp}]
+            </span>{" "}
+            {log.message}
+          </div>
+        ))
+      )}
+    </div>
+
+  </div>
+</aside>
 
           <section className="space-y-5 lg:col-span-5 xl:col-span-6">
             <div className="relative flex min-h-[520px] flex-col rounded-2xl border border-zinc-800/80 bg-zinc-900/55 p-5 shadow-[0_18px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
@@ -461,7 +456,7 @@ await wait(50);
       onClick={() => copyCode(baselineCode, 'baseline')}
       className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-300 transition hover:bg-zinc-800"
     >
-      {copiedCode === 'baseline' ? '✅ Copied!' : 'Copy'}
+      {copiedCode === 'baseline' ? ' Copied!' : 'Copy'}
     </button>
   )}
 </div>
@@ -482,7 +477,7 @@ await wait(50);
       onClick={() => copyCode(finalCode, 'final')}
       className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 transition hover:bg-cyan-500/20"
     >
-      {copiedCode === 'final' ? '✅ Copied!' : 'Copy'}
+      {copiedCode === 'final' ? ' Copied!' : 'Copy'}
     </button>
   )}
 </div>
