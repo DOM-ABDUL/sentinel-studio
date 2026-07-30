@@ -28,12 +28,28 @@ type Evaluation = {
   issues: string[];
 };
 
-type AgentResult = {
-  baselineCode: string;
-  finalCode?: string;
-  evaluation: Evaluation;
-  improvementSummary?: string;
-};
+type AgentResult =
+  | {
+      mode: "raw";
+      baselineCode: string;
+      evaluation: Evaluation;
+    }
+  | {
+      mode: "sentinel";
+      baselineCode: string;
+      finalCode: string;
+      initialEvaluation: Evaluation;
+      finalEvaluation: Evaluation;
+      improvementSummary: string;
+    }
+  | {
+      mode: "improve";
+      baselineCode: string;
+      finalCode: string;
+      initialEvaluation: Evaluation;
+      finalEvaluation: Evaluation;
+      improvementSummary: string;
+    };
 
 type StreamEvent =
   | { type: 'log'; message: string }
@@ -395,23 +411,29 @@ export default function HomePage() {
   }
 
   function applyResult(result: AgentResult) {
-    const score = result.evaluation.reliabilityScore;
-
-    // The streaming execution result exposes one final evaluation. Using it for
-    // both dashboard values avoids fabricating an unavailable baseline score.
-    setInitialScore(score);
-    setFinalScore(score);
+  if (result.mode === "raw") {
+    setInitialScore(result.evaluation.reliabilityScore);
+    setFinalScore(result.evaluation.reliabilityScore);
     setRiskBreakdown(result.evaluation.riskBreakdown);
     setConfidence(result.evaluation.confidence);
     setBaselineCode(result.baselineCode);
-    setFinalCode(result.finalCode ?? null);
-    setImprovementSummary(result.improvementSummary ?? null);
-    setHasRun(true);
-    setLoading(false);
-
-    activePhaseRef.current = 'Completed';
-    setActivePhase('Completed');
+    setFinalCode(null);
+    setImprovementSummary(null);
+  } else {
+    setInitialScore(result.initialEvaluation.reliabilityScore);
+    setFinalScore(result.finalEvaluation.reliabilityScore);
+    setRiskBreakdown(result.finalEvaluation.riskBreakdown);
+    setConfidence(result.finalEvaluation.confidence);
+    setBaselineCode(result.baselineCode);
+    setFinalCode(result.finalCode);
+    setImprovementSummary(result.improvementSummary);
   }
+
+  setHasRun(true);
+  setLoading(false);
+  activePhaseRef.current = "Completed";
+  setActivePhase("Completed");
+}
 
   async function copyCode(code: string, type: 'baseline' | 'final') {
     if (!code) {
@@ -657,9 +679,21 @@ export default function HomePage() {
                 ) : (
                   logs.map((log, index) => (
                     <div
-                      key={log.id}
-                      className="agent-log-entry mb-1 text-zinc-300"
-                    >
+  key={log.id}
+  className={`agent-log-entry mb-1 ${
+    log.message.includes('[Planner]')
+      ? 'text-cyan-400'
+      : log.message.includes('[Builder]')
+      ? 'text-blue-400'
+      : log.message.includes('[Evaluator]')
+      ? 'text-amber-400'
+      : log.message.includes('[Self-Healer]')
+      ? 'text-rose-400'
+      : log.message.includes('[System]')
+      ? 'text-emerald-400'
+      : 'text-zinc-300'
+  }`}
+>
                       <span className="text-zinc-500">[{log.timestamp}]</span>{' '}
                       {log.message}
                       {loading && index === logs.length - 1 && (
