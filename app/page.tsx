@@ -192,7 +192,11 @@ export default function HomePage() {
     return baselineCode.trim() === finalCode.trim();
   }, [baselineCode, finalCode]);
 
-  const selfHealingTriggered = delta > 0;
+const selfHealingTriggered =
+  currentResultMode !== 'raw' &&
+  baselineCode !== null &&
+  finalCode !== null &&
+  baselineCode.trim() !== finalCode.trim();
 
   const selfHealingReasons = useMemo(() => {
     if (!hasRun || currentResultMode === 'raw') return [] as string[];
@@ -200,9 +204,12 @@ export default function HomePage() {
     const reasons: string[] = [];
 
     if (selfHealingTriggered) {
-      reasons.push('Reliability increased after Sentinel hardening pass.');
-      reasons.push(`Reliability delta indicates improvement of ${delta} points.`);
-     reasons.push('Self-healing was automatically triggered because reliability thresholds were not met.');
+     reasons.push(
+  `Self-healing triggered because initial reliability (${initialScore}%) or security (${initialSecurity ?? '--'}%) was below Sentinel thresholds.`
+);
+reasons.push(
+  `Post-healing reliability is ${finalScore}%.`
+);
     } else {
       reasons.push(
         'Evaluation completed. No corrective refactor was required because reliability and security thresholds were satisfied.',

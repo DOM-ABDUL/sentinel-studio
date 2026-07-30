@@ -503,97 +503,82 @@ export async function runAgentExecution(
     }
 
     //  IMPROVE MODE
-    if (mode === "improve") {
-      const baselineCode = requireText(input.code, "Code");
+   if (mode === "improve") {
+  const baselineCode = requireText(input.code, "Code");
 
-      const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
+  const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
 
-      const finalCode = await runSelfHealingAgent(
-        baselineCode,
-        initialEvaluation.issues,
-        onLog,
-      );
+  const finalCode = await runSelfHealingAgent(
+    baselineCode,
+    initialEvaluation.issues,
+    onLog,
+  );
 
-      emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
-      const evaluatedFinalCode = await runEvaluationAgent(finalCode, onLog);
+  emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
+  const finalEvaluation = await runEvaluationAgent(finalCode, onLog);
 
-      const finalEvaluation = {
-        ...evaluatedFinalCode,
-        reliabilityScore: Math.min(
-          100,
-          evaluatedFinalCode.reliabilityScore + 5,
-        ),
-      };
+  const improvementSummary = await createImprovementSummary(
+    baselineCode,
+    finalCode,
+    "Summarize the reliability and security improvements made.",
+    onLog,
+  );
 
-      const improvementSummary = await createImprovementSummary(
-        baselineCode,
-        finalCode,
-        "Summarize the reliability and security improvements made.",
-        onLog,
-      );
+  emitLog(onLog, "[System] Improve execution completed.");
 
-      emitLog(onLog, "[System] Improve execution completed.");
-
-      return {
-        mode: "improve",
-        baselineCode,
-        finalCode,
-        initialEvaluation,
-        finalEvaluation,
-        improvementSummary,
-      };
-    }
+  return {
+    mode: "improve",
+    baselineCode,
+    finalCode,
+    initialEvaluation,
+    finalEvaluation,
+    improvementSummary,
+  };
+}
 
     //  SENTINEL MODE
-    const prompt = requireText(input.prompt, "A user prompt");
+   // ✅ SENTINEL MODE
+const prompt = requireText(input.prompt, "A user prompt");
 
-    const plan = await runPlannerAgent(prompt, onLog);
-    const baselineCode = await runBuilderAgent(prompt, plan, onLog);
+const plan = await runPlannerAgent(prompt, onLog);
+const baselineCode = await runBuilderAgent(prompt, plan, onLog);
 
-    const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
+const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
 
-    let finalCode = baselineCode;
-    let finalEvaluation = initialEvaluation;
+let finalCode = baselineCode;
+let finalEvaluation = initialEvaluation;
 
-    if (
-      initialEvaluation.reliabilityScore < 85 ||
-      initialEvaluation.securityScore < 85
-    ) {
-      finalCode = await runSelfHealingAgent(
-        baselineCode,
-        initialEvaluation.issues,
-        onLog,
-      );
+if (
+  initialEvaluation.reliabilityScore < 85 ||
+  initialEvaluation.securityScore < 85
+) {
+  finalCode = await runSelfHealingAgent(
+    baselineCode,
+    initialEvaluation.issues,
+    onLog,
+  );
 
-      emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
-      finalEvaluation = await runEvaluationAgent(finalCode, onLog);
-    }
+  emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
+  finalEvaluation = await runEvaluationAgent(finalCode, onLog);
+}
 
-    finalEvaluation = {
-      ...finalEvaluation,
-      reliabilityScore: Math.min(
-        100,
-        finalEvaluation.reliabilityScore + 5,
-      ),
-    };
+const improvementSummary = await createImprovementSummary(
+  baselineCode,
+  finalCode,
+  "Summarize the improvements made between baseline and improved code.",
+  onLog,
+);
 
-    const improvementSummary = await createImprovementSummary(
-      baselineCode,
-      finalCode,
-      "Summarize the improvements made between baseline and improved code.",
-      onLog,
-    );
+emitLog(onLog, "[System] Sentinel execution completed.");
 
-    emitLog(onLog, "[System] Sentinel execution completed.");
-
-    return {
-      mode: "sentinel",
-      baselineCode,
-      finalCode,
-      initialEvaluation,
-      finalEvaluation,
-      improvementSummary,
-    };
+return {
+  mode: "sentinel",
+  baselineCode,
+  finalCode,
+  initialEvaluation,
+  finalEvaluation,
+  improvementSummary,
+};
   } catch (error) {
     emitLog(onLog, "[System] Execution failed.");
 
