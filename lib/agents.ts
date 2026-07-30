@@ -1,6 +1,12 @@
 import OpenAI from "openai";
+const MODELS = {
+  planner: "gpt-4.1",
+  builder: "gpt-4.1",
+  evaluator: "gpt-4.1-pro",
+  selfHealer: "gpt-4.1",
+  summary: "gpt-4o",
+};
 
-const MODEL = "gpt-4o-mini";
 const TEMPERATURE = 0.4;
 
 type PlannerResponse = {
@@ -235,13 +241,14 @@ function validateEvaluationResponse(data: unknown): EvaluationResponse {
 }
 
 async function createCompletion(
+  model: string,
   systemPrompt: string,
   userPrompt: string,
   requireJson: boolean,
-): Promise<string> {
+): Promise<string>{
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: MODEL,
+      model,
       temperature: TEMPERATURE,
       messages: [
         { role: "system", content: systemPrompt },
@@ -282,7 +289,8 @@ async function createImprovementSummary(
 ): Promise<string> {
   emitLog(onLog, "[System] Generating improvement summary...");
 
-  return createCompletion(
+ return createCompletion(
+  MODELS.summary,
     systemPrompt,
     `Baseline code:\n${baselineCode}\n\nImproved code:\n${finalCode}`,
     false,
@@ -297,6 +305,7 @@ export async function runPlannerAgent(
 
   emitLog(onLog, "[Planner] Generating architecture...");
   const content = await createCompletion(
+  MODELS.planner,
     `Create an architecture plan for the user request.
 Return only valid JSON with exactly these fields:
 {
@@ -327,6 +336,7 @@ export async function runRawBuilderAgent(
 
   emitLog(onLog, "[Builder] Generating implementation...");
   const code = await createCompletion(
+  MODELS.builder,
     "Generate minimal code that implements the user request. Avoid adding validation or defensive enhancements unless explicitly required. Return plain code only. Do not return Markdown fences or explanations.",
     prompt,
     false,
@@ -366,6 +376,7 @@ export async function runBuilderAgent(
 
   emitLog(onLog, "[Builder] Generating implementation...");
   const code = await createCompletion(
+  MODELS.builder,
     `Generate backend code that implements the user request and provided plan.
 Use only standard, common, or explicitly requested libraries. Do not invent imports, packages, APIs, or dependencies.
 Validate external inputs before use. Use safe defaults, null checks, type-safe boundaries, and explicit preconditions.
@@ -391,6 +402,7 @@ export async function runEvaluationAgent(
 
   emitLog(onLog, "[Evaluator] Running reliability audit...");
   const content = await createCompletion(
+  MODELS.evaluator,
     `Review the supplied code for missing validation, hardcoded secrets, security risks, hallucinated imports, and weak error handling.
 Return only valid JSON with exactly these lowercase keys:
 {
@@ -435,6 +447,7 @@ export async function runSelfHealingAgent(
 
   emitLog(onLog, "[Self-Healer] Refactoring issues...");
   const improvedCode = await createCompletion(
+  MODELS.selfHealer,
     `Rewrite the supplied code to resolve every listed issue.
 Preserve the intended functionality and externally expected behavior.
 Improve structure, clarity, validation, error handling, security, and reliability.
