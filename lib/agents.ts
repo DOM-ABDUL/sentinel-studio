@@ -2,7 +2,7 @@ import OpenAI from "openai";
 const MODELS = {
   raw: "gpt-3.5-turbo",
   planner: "gpt-4.1",
-  builder: "gpt-4.1",
+  builder:  "gpt-4o",
   evaluator: "gpt-4.1",
   selfHealer: "gpt-4.1",
   summary: "gpt-4o",
