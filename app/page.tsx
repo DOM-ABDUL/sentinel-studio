@@ -157,19 +157,30 @@ function isEvaluation(value: unknown): value is Evaluation {
 }
 
 function isAgentResult(value: unknown): value is AgentResult {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
 
   const result = value as Record<string, unknown>;
 
-  return (
-    typeof result.baselineCode === 'string' &&
-    isEvaluation(result.evaluation) &&
-    (result.finalCode === undefined || typeof result.finalCode === 'string') &&
-    (result.improvementSummary === undefined ||
-      typeof result.improvementSummary === 'string')
-  );
+  if (result.mode === "raw") {
+    return (
+      typeof result.baselineCode === "string" &&
+      isEvaluation(result.evaluation)
+    );
+  }
+
+  if (result.mode === "sentinel" || result.mode === "improve") {
+    return (
+      typeof result.baselineCode === "string" &&
+      typeof result.finalCode === "string" &&
+      isEvaluation(result.initialEvaluation) &&
+      isEvaluation(result.finalEvaluation) &&
+      typeof result.improvementSummary === "string"
+    );
+  }
+
+  return false;
 }
 
 function parseStreamEvent(line: string): StreamEvent {
