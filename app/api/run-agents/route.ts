@@ -100,6 +100,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     input = validateRequestBody(body);
   } catch (error) {
+    console.error("AGENT EXECUTION ERROR:", error);
     const message =
       error instanceof Error ? error.message : "Invalid request body.";
 
