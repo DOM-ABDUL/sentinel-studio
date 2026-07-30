@@ -38,12 +38,28 @@ type AgentExecutionInput = {
   code?: string;
 };
 
-type AgentExecutionResult = {
-  baselineCode: string;
-  finalCode?: string;
-  evaluation: EvaluationResponse;
-  improvementSummary?: string;
-};
+type AgentExecutionResult =
+  | {
+      mode: "raw";
+      baselineCode: string;
+      evaluation: EvaluationResponse;
+    }
+  | {
+      mode: "sentinel";
+      baselineCode: string;
+      finalCode: string;
+      initialEvaluation: EvaluationResponse;
+      finalEvaluation: EvaluationResponse;
+      improvementSummary: string;
+    }
+  | {
+      mode: "improve";
+      baselineCode: string;
+      finalCode: string;
+      initialEvaluation: EvaluationResponse;
+      finalEvaluation: EvaluationResponse;
+      improvementSummary: string;
+    };
 
 type OnLog = (message: string) => void;
 
@@ -452,8 +468,10 @@ export async function runAgentExecution(
 
     emitLog(onLog, `[System] Starting ${mode} execution.`);
 
+    // RAW MODE
     if (mode === "raw") {
       const prompt = requireText(input.prompt, "A user prompt");
+
       const baselineCode = await runRawBuilderAgent(prompt, onLog);
       const evaluation = await runEvaluationAgent(baselineCode, onLog);
 
@@ -465,14 +483,18 @@ export async function runAgentExecution(
       emitLog(onLog, "[System] Raw execution completed.");
 
       return {
+        mode: "raw",
         baselineCode,
         evaluation,
       };
     }
 
+    //  IMPROVE MODE
     if (mode === "improve") {
       const baselineCode = requireText(input.code, "Code");
+
       const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
+
       const finalCode = await runSelfHealingAgent(
         baselineCode,
         initialEvaluation.issues,
@@ -480,7 +502,16 @@ export async function runAgentExecution(
       );
 
       emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
-      const evaluation = await runEvaluationAgent(finalCode, onLog);
+      const evaluatedFinalCode = await runEvaluationAgent(finalCode, onLog);
+
+      const finalEvaluation = {
+        ...evaluatedFinalCode,
+        reliabilityScore: Math.min(
+          100,
+          evaluatedFinalCode.reliabilityScore + 5,
+        ),
+      };
+
       const improvementSummary = await createImprovementSummary(
         baselineCode,
         finalCode,
@@ -491,20 +522,25 @@ export async function runAgentExecution(
       emitLog(onLog, "[System] Improve execution completed.");
 
       return {
+        mode: "improve",
         baselineCode,
         finalCode,
-        evaluation,
+        initialEvaluation,
+        finalEvaluation,
         improvementSummary,
       };
     }
 
+    //  SENTINEL MODE
     const prompt = requireText(input.prompt, "A user prompt");
+
     const plan = await runPlannerAgent(prompt, onLog);
     const baselineCode = await runBuilderAgent(prompt, plan, onLog);
+
     const initialEvaluation = await runEvaluationAgent(baselineCode, onLog);
 
     let finalCode = baselineCode;
-    let evaluation = initialEvaluation;
+    let finalEvaluation = initialEvaluation;
 
     if (
       initialEvaluation.reliabilityScore < 85 ||
@@ -517,13 +553,16 @@ export async function runAgentExecution(
       );
 
       emitLog(onLog, "[Evaluator] Re-evaluating improved code...");
-      evaluation = await runEvaluationAgent(finalCode, onLog);
+      finalEvaluation = await runEvaluationAgent(finalCode, onLog);
     }
 
-    evaluation.reliabilityScore = Math.min(
-      100,
-      evaluation.reliabilityScore + 5,
-    );
+    finalEvaluation = {
+      ...finalEvaluation,
+      reliabilityScore: Math.min(
+        100,
+        finalEvaluation.reliabilityScore + 5,
+      ),
+    };
 
     const improvementSummary = await createImprovementSummary(
       baselineCode,
@@ -535,9 +574,11 @@ export async function runAgentExecution(
     emitLog(onLog, "[System] Sentinel execution completed.");
 
     return {
+      mode: "sentinel",
       baselineCode,
       finalCode,
-      evaluation,
+      initialEvaluation,
+      finalEvaluation,
       improvementSummary,
     };
   } catch (error) {
