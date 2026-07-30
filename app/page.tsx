@@ -20,15 +20,19 @@ type Confidence = {
 };
 
 type RawResponse = {
+  mode: 'raw';
   baselineCode: string;
   evaluation: {
     reliabilityScore: number;
+    securityScore: number;
     riskBreakdown: RiskBreakdown;
     confidence: Confidence;
+    issues: string[];
   };
 };
 
 type HardenedResponse = {
+  mode: 'sentinel' | 'improve';
   baselineCode: string;
   finalCode: string;
   initialEvaluation: {
@@ -41,9 +45,12 @@ type HardenedResponse = {
     securityScore: number;
     riskBreakdown: RiskBreakdown;
     confidence: Confidence;
+    issues: string[];
   };
   improvementSummary: string;
 };
+
+type StreamPayload = RawResponse | HardenedResponse;
 
 type DiffRow = {
   left: string;
@@ -245,12 +252,9 @@ export default function HomePage() {
     };
   }, [finalScore, hasRun]);
 
-  async function streamLogs(entries: string[]) {
-    for (const entry of entries) {
-      await wait(180);
-      setLogs((prev) => [...prev, entry]);
-    }
-  }
+ function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
   async function copyCode(code: string, type: 'baseline' | 'improved') {
     if (!code) return;
@@ -293,7 +297,7 @@ export default function HomePage() {
     }
 
     try {
-      const body =
+           const body =
         mode === 'improve'
           ? { mode: 'improve', code: codeInput }
           : { prompt: promptInput, mode };
@@ -304,54 +308,80 @@ export default function HomePage() {
         body: JSON.stringify(body),
       });
 
-      if (!res.ok) {
-        throw new Error('Request failed');
+      if (!res.body) {
+        throw new Error('Streaming is unavailable for this request.');
       }
 
-      if (mode === 'raw') {
-        const data = (await res.json()) as RawResponse;
+      // The API streams newline-delimited JSON events, so we read incrementally.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-        await streamLogs([
-          'Submitting prompt to baseline model...',
-          'Collecting reliability evaluation...',
-          'Raw benchmark complete.',
-        ]);
+      const handleEvent = (line: string) => {
+        if (!line.trim()) return;
 
-        const score = data.evaluation.reliabilityScore;
-        setInitialScore(score);
-        setFinalScore(score);
-        setRiskBreakdown(data.evaluation.riskBreakdown);
-        setConfidence(data.evaluation.confidence);
-        setInitialSecurity(null);
-        setFinalSecurity(null);
-        setDetectedIssues([]);
-        setBaselineCode(data.baselineCode);
-        setFinalCode(null);
-        setImprovementSummary(null);
+        const event = JSON.parse(line) as
+          | { type: 'log'; message: string }
+          | { type: 'error'; message: string }
+          | { type: 'complete'; payload: StreamPayload };
+
+        if (event.type === 'log') {
+          setLogs((prev) => [...prev, event.message]);
+          return;
+        }
+
+        if (event.type === 'error') {
+          setLogs((prev) => [...prev, `[System] ${event.message}`]);
+          return;
+        }
+
+        const data = event.payload;
+
+        if (data.mode === 'raw') {
+          const score = data.evaluation.reliabilityScore;
+          setInitialScore(score);
+          setFinalScore(score);
+          setRiskBreakdown(data.evaluation.riskBreakdown);
+          setConfidence(data.evaluation.confidence);
+          setInitialSecurity(null);
+          setFinalSecurity(null);
+          setDetectedIssues([]);
+          setBaselineCode(data.baselineCode);
+          setFinalCode(null);
+          setImprovementSummary(null);
+        } else {
+          setInitialScore(data.initialEvaluation.reliabilityScore);
+          setFinalScore(data.finalEvaluation.reliabilityScore);
+          setInitialSecurity(data.initialEvaluation.securityScore);
+          setFinalSecurity(data.finalEvaluation.securityScore);
+          setDetectedIssues(data.initialEvaluation.issues);
+          setRiskBreakdown(data.finalEvaluation.riskBreakdown);
+          setConfidence(data.finalEvaluation.confidence);
+          setBaselineCode(data.baselineCode);
+          setFinalCode(data.finalCode);
+          setImprovementSummary(data.improvementSummary);
+        }
+
         setHasRun(true);
-      } else {
-        const data = (await res.json()) as HardenedResponse;
+      };
 
-        await streamLogs([
-          mode === 'improve'
-            ? 'Running deep static reliability audit...'
-            : 'Planning architecture with Sentinel planner...',
-          'Applying implementation safeguards...',
-          'Evaluating reliability after hardening...',
-          'Sentinel benchmark complete.',
-        ]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-        setInitialScore(data.initialEvaluation.reliabilityScore);
-        setFinalScore(data.finalEvaluation.reliabilityScore);
-        setInitialSecurity(data.initialEvaluation.securityScore);
-        setFinalSecurity(data.finalEvaluation.securityScore);
-        setDetectedIssues(data.initialEvaluation.issues);
-        setRiskBreakdown(data.finalEvaluation.riskBreakdown);
-        setConfidence(data.finalEvaluation.confidence);
-        setBaselineCode(data.baselineCode);
-        setFinalCode(data.finalCode);
-        setImprovementSummary(data.improvementSummary);
-        setHasRun(true);
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          handleEvent(line);
+        }
+      }
+
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        handleEvent(buffer);
       }
     } catch {
       setLogs((prev) => [...prev, 'Benchmark run failed. Please try again.']);
