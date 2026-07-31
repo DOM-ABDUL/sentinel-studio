@@ -15,7 +15,7 @@ Built with OpenAI Codex
 
 ---
 
-# 📸 Interface Preview
+# Interface Preview
 
 ## Main Dashboard
 
