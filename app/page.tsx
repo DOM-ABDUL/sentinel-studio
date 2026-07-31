@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import jsPDF from 'jspdf';
 
 type Mode = 'raw' | 'sentinel' | 'improve';
 type Phase = 'Planner' | 'Builder' | 'Evaluator' | 'Self-Healer';
@@ -423,6 +424,46 @@ const data = event.payload;
     }
   }
 
+  function downloadReport() {
+  if (!hasRun) return;
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text('Sentinel Reliability Report', 20, 20);
+
+  doc.setFontSize(11);
+  doc.text(`Mode: ${currentResultMode ?? '--'}`, 20, 35);
+  doc.text(`Initial Reliability: ${initialScore}%`, 20, 45);
+  doc.text(`Final Reliability: ${finalScore}%`, 20, 55);
+  doc.text(`Delta: ${delta > 0 ? '+' : ''}${delta}%`, 20, 65);
+
+  if (initialSecurity !== null) {
+    doc.text(`Initial Security: ${initialSecurity}%`, 20, 75);
+  }
+
+  if (finalSecurity !== null) {
+    doc.text(`Final Security: ${finalSecurity}%`, 20, 85);
+  }
+
+  if (detectedIssues.length > 0) {
+    doc.text('Detected Issues:', 20, 100);
+    detectedIssues.slice(0, 5).forEach((issue, index) => {
+      doc.text(`- ${issue}`, 25, 110 + index * 8);
+    });
+  } else {
+    doc.text('No critical issues detected.', 20, 100);
+  }
+
+  if (improvementSummary) {
+    doc.text('Improvement Summary:', 20, 140);
+    const splitSummary = doc.splitTextToSize(improvementSummary, 170);
+    doc.text(splitSummary, 20, 150);
+  }
+
+  doc.save('sentinel-reliability-report.pdf');
+}
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-6 sm:px-6 lg:px-8">
@@ -627,7 +668,20 @@ const data = event.payload;
 
             {hasRun && (
               <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/50 p-5 shadow-[0_14px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-6">
-                <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">Generated Output</h2>
+               <div className="flex items-center justify-between">
+  <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">
+    Generated Output
+  </h2>
+
+  {hasRun && (
+    <button
+      onClick={downloadReport}
+      className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[11px] text-cyan-200 transition hover:bg-cyan-400/20"
+    >
+      Download PDF Report
+    </button>
+  )}
+</div>
 
                 {(currentResultMode === 'sentinel' || currentResultMode === 'improve') && (
                   <div className="mt-4 rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-zinc-900/85 to-zinc-950/85 p-[1px] shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
