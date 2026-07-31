@@ -95,6 +95,14 @@ function buildLineDiffRows(baseline: string, improved: string): DiffRow[] {
   return rows;
 }
 
+function formatTime() {
+  const now = new Date();
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  const seconds = now.getSeconds().toString().padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+}
+
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'generate' | 'improve'>('generate');
 
@@ -107,7 +115,12 @@ export default function HomePage() {
   const [finalScore, setFinalScore] = useState(0);
   const [animatedFinal, setAnimatedFinal] = useState(0);
 
-  const [logs, setLogs] = useState<string[]>([]);
+ type LogEntry = {
+  message: string;
+  timestamp: string;
+};
+
+const [logs, setLogs] = useState<LogEntry[]>([]);
   const [modeLabel, setModeLabel] = useState<string | null>(null);
 
   const [riskBreakdown, setRiskBreakdown] = useState<RiskBreakdown | null>(null);
@@ -172,10 +185,10 @@ export default function HomePage() {
   const phaseProgress = useMemo(() => {
     if (!hasRun) return 0;
     const touched = {
-      Planner: logs.some((line) => line.includes('[Planner]')),
-      Builder: logs.some((line) => line.includes('[Builder]')),
-      Evaluator: logs.some((line) => line.includes('[Evaluator]')),
-      'Self-Healer': logs.some((line) => line.includes('[Self-Healer]')),
+      Planner: logs.some((entry) => entry.message.includes('[Planner]')),
+      Builder: logs.some((entry) => entry.message.includes('[Builder]')),
+      Evaluator: logs.some((entry) => entry.message.includes('[Evaluator]')),
+      'Self-Healer':logs.some((entry) => entry.message.includes('[Self-Healer]')),
     };
 
     const completeCount = Object.values(touched).filter(Boolean).length;
@@ -217,7 +230,7 @@ reasons.push(
     }
 
     return reasons;
-  }, [hasRun, currentResultMode, selfHealingTriggered, delta]);
+ }, [hasRun, currentResultMode, selfHealingTriggered, initialScore, finalScore, initialSecurity]);
 
   const status = useMemo(() => {
     if (!hasRun) {
@@ -259,9 +272,7 @@ reasons.push(
     };
   }, [finalScore, hasRun]);
 
- function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+
 
   async function copyCode(code: string, type: 'baseline' | 'improved') {
     if (!code) return;
@@ -294,13 +305,19 @@ reasons.push(
 
     if (mode === 'raw') {
       setModeLabel('Raw AI Mode');
-      setLogs(['Running Raw AI baseline benchmark...']);
+     setLogs([
+  { message: 'Running Raw AI baseline benchmark...', timestamp: formatTime() },
+]);
     } else if (mode === 'sentinel') {
       setModeLabel('Sentinel Mode');
-      setLogs(['Initializing Sentinel multi-agent pipeline...']);
+     setLogs([
+  { message: 'Initializing Sentinel multi-agent pipeline...', timestamp: formatTime() },
+]);
     } else {
       setModeLabel('Improve Existing Code');
-      setLogs(['Auditing submitted code with Sentinel...']);
+     setLogs([
+  { message: 'Auditing submitted code with Sentinel...', timestamp: formatTime() },
+]);
     }
 
     try {
@@ -333,16 +350,22 @@ reasons.push(
           | { type: 'complete'; payload: StreamPayload };
 
         if (event.type === 'log') {
-          setLogs((prev) => [...prev, event.message]);
+         setLogs((prev) => [
+  ...prev,
+  { message: event.message, timestamp: formatTime() },
+]);
           return;
         }
 
-        if (event.type === 'error') {
-          setLogs((prev) => [...prev, `[System] ${event.message}`]);
-          return;
-        }
+       if (event.type === 'error') {
+  setLogs((prev) => [
+    ...prev,
+    { message: `[System] ${event.message}`, timestamp: formatTime() },
+  ]);
+}
+if (event.type !== 'complete') return;
 
-        const data = event.payload;
+const data = event.payload;
 
         if (data.mode === 'raw') {
           const score = data.evaluation.reliabilityScore;
@@ -391,7 +414,10 @@ reasons.push(
         handleEvent(buffer);
       }
     } catch {
-      setLogs((prev) => [...prev, 'Benchmark run failed. Please try again.']);
+     setLogs((prev) => [
+  ...prev,
+  { message: 'Benchmark run failed. Please try again.', timestamp: formatTime() },
+]);
     } finally {
       setLoading(false);
     }
@@ -423,7 +449,9 @@ reasons.push(
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">Agent Trace View</p>
                 <div className="mt-2 space-y-1.5">
                   {PHASES.map((phase) => {
-                    const seen = logs.some((line) => line.includes(`[${phase}]`));
+                   const seen = logs.some((entry) =>
+  entry.message.includes(`[${phase}]`)
+);
                     return (
                       <div key={phase} className="flex items-center justify-between rounded-md border border-zinc-800 bg-zinc-900/70 px-2 py-1 text-[11px]">
                         <span className="text-zinc-300">{phase}</span>
@@ -451,21 +479,24 @@ reasons.push(
       [No active logs yet. Run a benchmark.]
     </div>
   ) : (
-    logs.map((line, index) => {
-      let color = 'text-zinc-400';
+   logs.map((entry, index) => {
+  let color = 'text-zinc-400';
 
-      if (line.includes('[Planner]')) color = 'text-cyan-400';
-      else if (line.includes('[Builder]')) color = 'text-blue-400';
-      else if (line.includes('[Evaluator]')) color = 'text-amber-400';
-      else if (line.includes('[Self-Healer]')) color = 'text-rose-400';
-      else if (line.includes('[System]')) color = 'text-emerald-400';
+  if (entry.message.includes('[Planner]')) color = 'text-cyan-400';
+  else if (entry.message.includes('[Builder]')) color = 'text-blue-400';
+  else if (entry.message.includes('[Evaluator]')) color = 'text-amber-400';
+  else if (entry.message.includes('[Self-Healer]')) color = 'text-rose-400';
+  else if (entry.message.includes('[System]')) color = 'text-emerald-400';
 
-      return (
-        <div key={index} className={`mb-1 ${color}`}>
-          {line}
-        </div>
-      );
-    })
+  return (
+    <div key={index} className={`mb-1 ${color}`}>
+      <span className="text-zinc-500 mr-2">
+        [{entry.timestamp}]
+      </span>
+      {entry.message}
+    </div>
+  );
+})
   )}
 </div>
             </div>
