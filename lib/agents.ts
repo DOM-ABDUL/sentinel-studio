@@ -119,6 +119,12 @@ function hasExactKeys(
     actualKeys.every((key, index) => key === sortedExpectedKeys[index])
   );
 }
+function hasRequiredKeys(
+  value: Record<string, unknown>,
+  requiredKeys: string[],
+): boolean {
+  return requiredKeys.every((key) => key in value);
+}
 
 function validatePlannerResponse(data: unknown): PlannerResponse {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -200,27 +206,27 @@ function validateEvaluationResponse(data: unknown): EvaluationResponse {
   const confidenceValues = confidence as Record<string, unknown>;
 
   if (
-    !hasExactKeys(risk, [
-      "validation",
-      "authentication",
-      "secretHandling",
-      "errorHandling",
-    ]) ||
-    typeof risk.validation !== "string" ||
-    typeof risk.authentication !== "string" ||
-    typeof risk.secretHandling !== "string" ||
-    typeof risk.errorHandling !== "string" ||
-    !hasExactKeys(confidenceValues, [
-      "planningConfidence",
-      "implementationConfidence",
-      "securityConfidence",
-    ]) ||
-    typeof confidenceValues.planningConfidence !== "string" ||
-    typeof confidenceValues.implementationConfidence !== "string" ||
-    typeof confidenceValues.securityConfidence !== "string"
-  ) {
-    throw new Error("Evaluation response contains invalid nested fields.");
-  }
+  !hasRequiredKeys(risk, [
+    "validation",
+    "authentication",
+    "secretHandling",
+    "errorHandling",
+  ]) ||
+  typeof risk.validation !== "string" ||
+  typeof risk.authentication !== "string" ||
+  typeof risk.secretHandling !== "string" ||
+  typeof risk.errorHandling !== "string" ||
+  !hasRequiredKeys(confidenceValues, [
+    "planningConfidence",
+    "implementationConfidence",
+    "securityConfidence",
+  ]) ||
+  typeof confidenceValues.planningConfidence !== "string" ||
+  typeof confidenceValues.implementationConfidence !== "string" ||
+  typeof confidenceValues.securityConfidence !== "string"
+) {
+  throw new Error("Evaluation response contains invalid nested fields.");
+}
 
   return {
     reliabilityScore: response.reliabilityScore,
