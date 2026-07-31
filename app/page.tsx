@@ -477,7 +477,7 @@ doc.setTextColor(0, 0, 0);
 doc.text(`Mode: ${currentResultMode ?? '--'}`, 20, 45);
 doc.text(`Initial Reliability: ${initialScore}%`, 20, 55);
 doc.text(`Final Reliability: ${finalScore}%`, 20, 65);
-// ===== Reliability Progress Bar =====
+
 const barWidth = 150;
 const barHeight = 8;
 const startX = 20;
@@ -503,48 +503,83 @@ if (initialSecurity !== null) {
 
 if (finalSecurity !== null) {
   doc.text(`Final Security: ${finalSecurity}%`, 20, 105);
+
 }
-  if (detectedIssues.length > 0) {
-    doc.text('Detected Issues:', 20, 100);
-    detectedIssues.slice(0, 5).forEach((issue, index) => {
-      doc.text(`- ${issue}`, 25, 110 + index * 8);
-    });
-  } else {
-    doc.text('No critical issues detected.', 20, 100);
-  }
 
-  
-let yPosition = 170;
+let yPosition = 120;
 
-
-doc.setDrawColor(200);
-doc.line(20, yPosition - 10, 190, yPosition - 10);
-
+// ---- Detected Issues ----
 doc.setFontSize(12);
-doc.setTextColor(0);
-doc.text('Execution Trace:', 20, yPosition);
-yPosition += 10;
+doc.text('Detected Issues:', 20, yPosition);
+yPosition += 8;
 
-doc.setFontSize(9);
+doc.setFontSize(10);
 
-logs.slice(0, 15).forEach((entry) => {
-  if (yPosition > 270) {
+if (detectedIssues.length > 0) {
+  detectedIssues.slice(0, 5).forEach((issue) => {
+    const split = doc.splitTextToSize(`- ${issue}`, 170);
+
+    if (yPosition + split.length * 6 > 280) {
+      doc.addPage();
+      yPosition = 20;
+    }
+
+    doc.text(split, 25, yPosition);
+    yPosition += split.length * 6;
+  });
+} else {
+  doc.text('No critical issues detected.', 25, yPosition);
+  yPosition += 8;
+}
+
+
+if (improvementSummary) {
+  yPosition += 6;
+
+  doc.setFontSize(12);
+  doc.text('Improvement Summary:', 20, yPosition);
+  yPosition += 8;
+
+  doc.setFontSize(10);
+  const splitSummary = doc.splitTextToSize(improvementSummary, 170);
+
+  if (yPosition + splitSummary.length * 6 > 280) {
     doc.addPage();
     yPosition = 20;
   }
 
+  doc.text(splitSummary, 20, yPosition);
+  yPosition += splitSummary.length * 6;
+}
+
+
+yPosition += 10;
+
+doc.setDrawColor(200);
+doc.line(20, yPosition - 5, 190, yPosition - 5);
+
+doc.setFontSize(12);
+doc.text('Execution Trace:', 20, yPosition);
+yPosition += 8;
+
+doc.setFontSize(9);
+
+logs.slice(0, 15).forEach((entry) => {
   const line = `[${entry.timestamp}] ${entry.message}`;
   const split = doc.splitTextToSize(line, 170);
+
+  if (yPosition + split.length * 5 > 280) {
+    doc.addPage();
+    yPosition = 20;
+  }
 
   doc.text(split, 20, yPosition);
   yPosition += split.length * 5;
 });
+ 
 
-  if (improvementSummary) {
-    doc.text('Improvement Summary:', 20, 140);
-    const splitSummary = doc.splitTextToSize(improvementSummary, 170);
-    doc.text(splitSummary, 20, 150);
-  }
+  
+
  
 const pageCount = doc.getNumberOfPages();
 
