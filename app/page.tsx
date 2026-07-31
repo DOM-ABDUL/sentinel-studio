@@ -136,6 +136,36 @@ const [logs, setLogs] = useState<LogEntry[]>([]);
 
   const [outputTab, setOutputTab] = useState<OutputTab>('baseline');
   const [copiedCode, setCopiedCode] = useState<'baseline' | 'improved' | null>(null);
+  function handleTabSwitch(tab: 'generate' | 'improve') {
+  setActiveTab(tab);
+
+  // Reset run state
+  setHasRun(false);
+  setLoading(false);
+
+  // Clear outputs
+  setBaselineCode(null);
+  setFinalCode(null);
+  setImprovementSummary(null);
+
+  // Reset scores
+  setInitialScore(0);
+  setFinalScore(0);
+  setAnimatedFinal(0);
+  setInitialSecurity(null);
+  setFinalSecurity(null);
+
+  // Clear evaluation data
+  setRiskBreakdown(null);
+  setConfidence(null);
+  setDetectedIssues([]);
+
+  // Clear logs
+  setLogs([]);
+
+  // Reset mode label
+  setModeLabel(null);
+}
 
   useEffect(() => {
     if (!hasRun || finalScore <= 0) return;
@@ -550,7 +580,7 @@ const data = event.payload;
               <div className="relative z-10 mb-4 flex gap-2 rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-1">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('generate')}
+                onClick={() => handleTabSwitch('generate')}
                   className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                     activeTab === 'generate'
                       ? 'bg-cyan-500/20 text-cyan-200'
@@ -561,7 +591,7 @@ const data = event.payload;
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('improve')}
+                onClick={() => handleTabSwitch('improve')}
                   className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 ${
                     activeTab === 'improve'
                       ? 'bg-cyan-500/20 text-cyan-200'
