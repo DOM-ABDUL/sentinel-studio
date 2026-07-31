@@ -458,24 +458,52 @@ const data = event.payload;
   if (!hasRun) return;
 
   const doc = new jsPDF();
+ 
+doc.setFillColor(15, 23, 42); 
+doc.rect(0, 0, 210, 30, 'F');
 
-  doc.setFontSize(16);
-  doc.text('Sentinel Reliability Report', 20, 20);
+doc.setTextColor(255, 255, 255);
+doc.setFontSize(18);
+doc.text('Sentinel Reliability Report', 20, 18);
 
-  doc.setFontSize(11);
-  doc.text(`Mode: ${currentResultMode ?? '--'}`, 20, 35);
-  doc.text(`Initial Reliability: ${initialScore}%`, 20, 45);
-  doc.text(`Final Reliability: ${finalScore}%`, 20, 55);
-  doc.text(`Delta: ${delta > 0 ? '+' : ''}${delta}%`, 20, 65);
+doc.setFontSize(10);
+doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 25);
 
-  if (initialSecurity !== null) {
-    doc.text(`Initial Security: ${initialSecurity}%`, 20, 75);
-  }
 
-  if (finalSecurity !== null) {
-    doc.text(`Final Security: ${finalSecurity}%`, 20, 85);
-  }
+doc.setTextColor(0, 0, 0);
 
+ 
+ doc.setFontSize(11);
+doc.text(`Mode: ${currentResultMode ?? '--'}`, 20, 45);
+doc.text(`Initial Reliability: ${initialScore}%`, 20, 55);
+doc.text(`Final Reliability: ${finalScore}%`, 20, 65);
+// ===== Reliability Progress Bar =====
+const barWidth = 150;
+const barHeight = 8;
+const startX = 20;
+const startY = 70;
+
+doc.setFillColor(230, 230, 230);
+doc.rect(startX, startY, barWidth, barHeight, 'F');
+
+if (finalScore >= 85) {
+  doc.setFillColor(16, 185, 129); // green
+} else if (finalScore >= 70) {
+  doc.setFillColor(245, 158, 11); // amber
+} else {
+  doc.setFillColor(239, 68, 68); // red
+}
+
+doc.rect(startX, startY, (finalScore / 100) * barWidth, barHeight, 'F');
+doc.text(`Delta: ${delta > 0 ? '+' : ''}${delta}%`, 20, 85);
+
+if (initialSecurity !== null) {
+  doc.text(`Initial Security: ${initialSecurity}%`, 20, 95);
+}
+
+if (finalSecurity !== null) {
+  doc.text(`Final Security: ${finalSecurity}%`, 20, 105);
+}
   if (detectedIssues.length > 0) {
     doc.text('Detected Issues:', 20, 100);
     detectedIssues.slice(0, 5).forEach((issue, index) => {
@@ -485,11 +513,52 @@ const data = event.payload;
     doc.text('No critical issues detected.', 20, 100);
   }
 
+  
+let yPosition = 170;
+
+
+doc.setDrawColor(200);
+doc.line(20, yPosition - 10, 190, yPosition - 10);
+
+doc.setFontSize(12);
+doc.setTextColor(0);
+doc.text('Execution Trace:', 20, yPosition);
+yPosition += 10;
+
+doc.setFontSize(9);
+
+logs.slice(0, 15).forEach((entry) => {
+  if (yPosition > 270) {
+    doc.addPage();
+    yPosition = 20;
+  }
+
+  const line = `[${entry.timestamp}] ${entry.message}`;
+  const split = doc.splitTextToSize(line, 170);
+
+  doc.text(split, 20, yPosition);
+  yPosition += split.length * 5;
+});
+
   if (improvementSummary) {
     doc.text('Improvement Summary:', 20, 140);
     const splitSummary = doc.splitTextToSize(improvementSummary, 170);
     doc.text(splitSummary, 20, 150);
   }
+ 
+const pageCount = doc.getNumberOfPages();
+
+for (let i = 1; i <= pageCount; i++) {
+  doc.setPage(i);
+  doc.setFontSize(8);
+  doc.setTextColor(150);
+  doc.text(
+    `Sentinel Studio • Multi-Agent Reliability Audit • Page ${i} of ${pageCount}`,
+    105,
+    290,
+    { align: 'center' }
+  );
+}
 
   doc.save('sentinel-reliability-report.pdf');
 }
