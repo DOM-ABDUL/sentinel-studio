@@ -19,13 +19,13 @@ Built with OpenAI Codex
 
 ## Main Dashboard
 
-![Main Dashboard](docs/screenshots/main-dashboard.png)
+![Main Dashboard](public/main-dashboard.png)
 
 ---
 
 ## Reliability Surge — Before vs After Self-Healing
 
-![Reliability Surge](docs/screenshots/reliability-surge.png)
+![Reliability Surge](public/reliability-surge.png)
 
 Sentinel Mode demonstrates measurable reliability improvement through automated self‑healing.
 
@@ -33,7 +33,7 @@ Sentinel Mode demonstrates measurable reliability improvement through automated 
 
 ## Diff View — Baseline vs Hardened Output
 
-![Diff View](docs/screenshots/diff-view.png)
+![Diff View](public/diff-view.png)
 
 Clear visibility into structural changes made by the Self‑Healer Agent.
 
@@ -41,7 +41,7 @@ Clear visibility into structural changes made by the Self‑Healer Agent.
 
 ## Downloadable Reliability Report (PDF)
 
-![PDF Report](docs/screenshots/pdf-report.png)
+![PDF Report](public/pdf-report.png)
 
 Each execution generates a structured audit report including:
 - Reliability transition
